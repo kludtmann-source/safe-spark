@@ -1,0 +1,85 @@
+# Android Build Files
+*.apk
+*.aab
+*.dex
+*.class
+
+# Build Directories
+build/
+app/build/
+.gradle/
+captures/
+.externalNativeBuild/
+.cxx/
+
+# Local Configuration
+local.properties
+
+# IDE Files
+.idea/
+*.iml
+.DS_Store
+.indexignore
+
+# Logs
+*.log
+nohup.out
+
+# Gradle Wrapper (keep jar)
+!gradle-wrapper.jar
+
+# Android Studio
+.navigation/
+
+# Lint
+lint/
+lint-results*.html
+lint-results*.xml
+
+# Keystore Files (security)
+*.jks
+*.keystore
+signing.properties
+
+# Profiling
+*.hprof
+
+# Large Files (GitHub limit: 100MB)
+# PAN12 Dataset
+pan12-*.xml
+
+# Training Models & Data (too large for GitHub)
+training/models/
+training/data/
+*.keras
+*.h5
+
+# PDF Research Papers (not needed in repo)
+*.pdf
+
+# Python Virtual Environment
+ml/venv/
+ml_training/venv/
+venv/
+__pycache__/
+*.pyc
+
+# Native Libraries
+*.dylib
+*.so
+
+# TensorFlow Large Files
+**/tensorflow/**/*.dylib
+**/site-packages/tensorflow/
+
+# Secrets (security)
+secrets/
+*.secret
+.env
+.env.local
+
+# Backup Files
+*.backup
+*.bak
+.idea.backup*/
+

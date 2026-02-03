@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">SafeSpark</string>
+    <string name="accessibility_service_description">SafeSpark überwacht Textänderungen, um potenzielle Risiken für Kinder zu erkennen und zu melden.</string>
+</resources>

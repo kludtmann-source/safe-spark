@@ -1,0 +1,16 @@
+Copyright (c) 2026 Knut Ludtmann
+
+All rights reserved.
+
+This software and associated documentation files (the "Software") are provided
+for academic review and evaluation purposes only.
+
+Redistribution, modification, or commercial use of the Software, in whole or in
+part, is not permitted without explicit written permission from the copyright holder.
+
+This project incorporates concepts from the Osprey framework (https://github.com/fani-lab/Osprey)
+developed by Fani Lab at the University of Windsor. Integration and licensing terms
+for derivative works are subject to ongoing discussions with research partners.
+
+For licensing inquiries, please contact the copyright holder via GitHub:
+https://github.com/kludtmann-source

@@ -1,0 +1,62 @@
+
+> Configure project :app
+WARNING: The option setting 'android.disableResourceValidation=true' is experimental.
+The current default is 'false'.
+WARNING: The option setting 'android.disallowKotlinSourceSets=false' is experimental.
+The current default is 'true'.
+WARNING: The option setting 'android.builtInKotlin=false' is deprecated.
+The current default is 'true'.
+It will be removed in version 10.0 of the Android Gradle plugin.
+WARNING: The option setting 'android.newDsl=false' is deprecated.
+The current default is 'true'.
+It will be removed in version 10.0 of the Android Gradle plugin.
+
+> Task :app:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :app:preBuild UP-TO-DATE
+> Task :app:preDebugBuild UP-TO-DATE
+> Task :app:generateDebugResources
+> Task :app:packageDebugResources
+> Task :app:processDebugNavigationResources
+> Task :app:javaPreCompileDebug
+> Task :app:checkDebugAarMetadata
+> Task :app:compileDebugNavigationResources
+> Task :app:mapDebugSourceSetPaths
+> Task :app:parseDebugLocalResources
+> Task :app:createDebugCompatibleScreenManifests
+> Task :app:extractDeepLinksDebug
+> Task :app:generateDebugRFile
+
+> Task :app:processDebugMainManifest
+/Users/knutludtmann/AndroidStudioProjects/KidGuard/app/src/main/AndroidManifest.xml:8:5-66:19 Warning:
+	application@android:allowBackup was tagged at AndroidManifest.xml:8 to replace other declarations but no other declaration present
+/Users/knutludtmann/AndroidStudioProjects/KidGuard/app/src/main/AndroidManifest.xml:8:5-66:19 Warning:
+	application@android:supportsRtl was tagged at AndroidManifest.xml:8 to replace other declarations but no other declaration present
+
+> Task :app:processDebugManifest
+> Task :app:preDebugUnitTestBuild UP-TO-DATE
+> Task :app:processDebugManifestForPackage
+> Task :app:javaPreCompileDebugUnitTest
+> Task :app:mergeDebugResources
+> Task :app:processDebugResources
+
+> Task :app:compileDebugKotlin
+w: file:///Users/knutludtmann/AndroidStudioProjects/KidGuard/app/src/main/java/com/example/kidguard/consent/ChildConsentActivity.kt:144:18 This declaration overrides a deprecated member but is not marked as deprecated itself. Add the '@Deprecated' annotation or suppress the diagnostic.
+
+> Task :app:compileDebugJavaWithJavac NO-SOURCE
+> Task :app:processDebugJavaRes
+> Task :app:bundleDebugClassesToCompileJar
+> Task :app:bundleDebugClassesToRuntimeJar
+> Task :app:compileDebugUnitTestKotlin
+> Task :app:compileDebugUnitTestJavaWithJavac NO-SOURCE
+> Task :app:processDebugUnitTestJavaRes
+
+> Task :app:testDebugUnitTest
+
+ParentAuthManagerTest > unnecessary Mockito stubbings FAILED
+    org.mockito.exceptions.misusing.UnnecessaryStubbingException at StrictRunner.java:54
+
+MLGroomingDetectorTest > predict STAGE_TRUST for trust-building phrase FAILED
+    com.google.common.truth.AssertionErrorWithFacts at MLGroomingDetectorTest.kt:91
+
+> Task :app:testDebugUnitTest FAILED
+24 actionable tasks: 24 executed

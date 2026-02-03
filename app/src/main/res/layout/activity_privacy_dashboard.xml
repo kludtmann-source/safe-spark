@@ -1,0 +1,172 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fillViewport="true"
+    android:background="#FFFFFF">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="24dp">
+
+        <TextView
+            android:id="@+id/titleText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="🔒 Privatsphäre &amp; Datenschutz"
+            android:textSize="24sp"
+            android:textStyle="bold"
+            android:textColor="#000000"
+            android:gravity="center"
+            android:layout_marginBottom="32dp"/>
+
+        <!-- Daten gesendet -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginBottom="16dp">
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Daten gesendet:"
+                android:textSize="16sp"
+                android:textColor="#666666"/>
+            <TextView
+                android:id="@+id/datasSentValue"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="0 Bytes"
+                android:textSize="16sp"
+                android:textStyle="bold"
+                android:textColor="#4CAF50"/>
+        </LinearLayout>
+
+        <!-- Daten empfangen -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginBottom="16dp">
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Daten empfangen:"
+                android:textSize="16sp"
+                android:textColor="#666666"/>
+            <TextView
+                android:id="@+id/dataReceivedValue"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="0 Bytes"
+                android:textSize="16sp"
+                android:textStyle="bold"
+                android:textColor="#4CAF50"/>
+        </LinearLayout>
+
+        <!-- Server Verbindungen -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginBottom="16dp">
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Server-Verbindungen:"
+                android:textSize="16sp"
+                android:textColor="#666666"/>
+            <TextView
+                android:id="@+id/serverConnectionsValue"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="0"
+                android:textSize="16sp"
+                android:textStyle="bold"
+                android:textColor="#4CAF50"/>
+        </LinearLayout>
+
+        <!-- Cloud Sync -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginBottom="16dp">
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Cloud-Sync:"
+                android:textSize="16sp"
+                android:textColor="#666666"/>
+            <TextView
+                android:id="@+id/cloudSyncValue"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Deaktiviert"
+                android:textSize="16sp"
+                android:textStyle="bold"
+                android:textColor="#4CAF50"/>
+        </LinearLayout>
+
+        <!-- Letzte Aktualisierung -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginBottom="32dp">
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Letzte Aktualisierung:"
+                android:textSize="16sp"
+                android:textColor="#666666"/>
+            <TextView
+                android:id="@+id/lastUpdateValue"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="--"
+                android:textSize="16sp"
+                android:textStyle="bold"
+                android:textColor="#333333"/>
+        </LinearLayout>
+
+        <!-- Info Text -->
+        <TextView
+            android:id="@+id/privacyInfoText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Info..."
+            android:textSize="14sp"
+            android:textColor="#333333"
+            android:lineSpacingExtra="4dp"
+            android:background="#F5F5F5"
+            android:padding="16dp"
+            android:layout_marginBottom="24dp"/>
+
+        <!-- Buttons -->
+        <Button
+            android:id="@+id/verifyButton"
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:text="🔍 Verifizieren"
+            android:textSize="16sp"
+            android:backgroundTint="#2196F3"
+            android:layout_marginBottom="16dp"/>
+
+        <Button
+            android:id="@+id/closeButton"
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:text="Schließen"
+            android:textSize="16sp"
+            android:backgroundTint="#999999"/>
+
+    </LinearLayout>
+</ScrollView>

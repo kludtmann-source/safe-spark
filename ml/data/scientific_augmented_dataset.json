@@ -1,0 +1,670 @@
+[
+  {
+    "label": "STAGE_TRUST",
+    "text": "du bist echt anders als die anderen in deinem alter"
+  },
+  {
+    "label": "STAGE_TRUST",
+    "text": "ich hab das gefühl nur du verstehst mich richtig"
+  },
+  {
+    "label": "STAGE_TRUST",
+    "text": "du wirkst viel reifer als die anderen aus deiner klasse"
+  },
+  {
+    "label": "STAGE_TRUST",
+    "text": "mit dir kann man echt über alles reden 😊"
+  },
+  {
+    "label": "STAGE_TRUST",
+    "text": "du bist was ganz besonderes, das merkst du oder?"
+  },
+  {
+    "label": "STAGE_TRUST",
+    "text": "finds cool dass du so offen bist, das traut sich nicht jeder"
+  },
+  {
+    "label": "STAGE_TRUST",
+    "text": "du kannst mir alles erzählen, ich verurteile dich nicht"
+  },
+  {
+    "label": "STAGE_TRUST",
+    "text": "ich seh dich nicht als kind, du denkst ja viel erwachsener"
+  },
+  {
+    "label": "STAGE_NEEDS",
+    "text": "brauchst du v-bucks? ich kann dir welche kaufen"
+  },
+  {
+    "label": "STAGE_NEEDS",
+    "text": "sag bescheid wenn du spotify premium willst, ich zahl das"
+  },
+  {
+    "label": "STAGE_NEEDS",
+    "text": "ich schick dir gern guthaben fürs handy wenn du willst"
+  },
+  {
+    "label": "STAGE_NEEDS",
+    "text": "welche skins willst du haben? ich kauf die für dich"
+  },
+  {
+    "label": "STAGE_NEEDS",
+    "text": "ich könnt dir auch n neues handy besorgen 👀"
+  },
+  {
+    "label": "STAGE_NEEDS",
+    "text": "brauchst du geld für irgendwas? sag einfach"
+  },
+  {
+    "label": "STAGE_NEEDS",
+    "text": "ich schenk dir robux wenn du magst, kein problem"
+  },
+  {
+    "label": "STAGE_NEEDS",
+    "text": "was für spiele zockst du? ich kauf dir was im store"
+  },
+  {
+    "label": "STAGE_ISOLATION",
+    "text": "schreib mir lieber auf telegram, da ists sicherer"
+  },
+  {
+    "label": "STAGE_ISOLATION",
+    "text": "lass auf snap weiterschreiben, da löscht sichs automatisch"
+  },
+  {
+    "label": "STAGE_ISOLATION",
+    "text": "sag deinen eltern lieber nichts, die verstehen das nicht"
+  },
+  {
+    "label": "STAGE_ISOLATION",
+    "text": "können wir auf discord privat schreiben? ist besser so"
+  },
+  {
+    "label": "STAGE_ISOLATION",
+    "text": "das bleibt unter uns okay? unser geheimnis 🤫"
+  },
+  {
+    "label": "STAGE_ISOLATION",
+    "text": "deine eltern würden das nur verbieten, die checken das nicht"
+  },
+  {
+    "label": "STAGE_ISOLATION",
+    "text": "lösch die nachrichten lieber nachdem du sie gelesen hast"
+  },
+  {
+    "label": "STAGE_ISOLATION",
+    "text": "schreib mir wenn niemand in der nähe ist okay?"
+  },
+  {
+    "label": "STAGE_ASSESSMENT",
+    "text": "bist du grad allein im zimmer?"
+  },
+  {
+    "label": "STAGE_ASSESSMENT",
+    "text": "wo sind deine eltern gerade?"
+  },
+  {
+    "label": "STAGE_ASSESSMENT",
+    "text": "ist deine tür zu?"
+  },
+  {
+    "label": "STAGE_ASSESSMENT",
+    "text": "kann dich jemand grade mitlesen?"
+  },
+  {
+    "label": "STAGE_ASSESSMENT",
+    "text": "hast du das handy für dich oder sind andere dabei?"
+  },
+  {
+    "label": "STAGE_ASSESSMENT",
+    "text": "wann bist du mal allein zuhause?"
+  },
+  {
+    "label": "STAGE_ASSESSMENT",
+    "text": "hat jemand zugriff auf dein handy außer dir?"
+  },
+  {
+    "label": "STAGE_ASSESSMENT",
+    "text": "können deine eltern deine nachrichten sehen?"
+  },
+  {
+    "label": "STAGE_SAFE",
+    "text": "hast du die hausaufgaben in mathe gemacht?"
+  },
+  {
+    "label": "STAGE_SAFE",
+    "text": "lass nachher fortnite zocken"
+  },
+  {
+    "label": "STAGE_SAFE",
+    "text": "morgen schreiben wir englisch test oder?"
+  },
+  {
+    "label": "STAGE_SAFE",
+    "text": "kommst du heute zum fußballtraining?"
+  },
+  {
+    "label": "STAGE_SAFE",
+    "text": "welches level bist du in roblox?"
+  },
+  {
+    "label": "STAGE_SAFE",
+    "text": "hast du das neue minecraft update gesehen?"
+  },
+  {
+    "label": "STAGE_SAFE",
+    "text": "wollen wir zusammen für bio lernen?"
+  },
+  {
+    "label": "STAGE_SAFE",
+    "text": "brauchst du hilfe bei den mathe hausaufgaben?"
+  },
+  {
+    "label": "STAGE_SAFE",
+    "text": "how old are you?"
+  },
+  {
+    "label": "STAGE_TRUST",
+    "text": "you seem mature for your age"
+  },
+  {
+    "label": "STAGE_TRUST",
+    "text": "wanna be friends?"
+  },
+  {
+    "label": "STAGE_TRUST",
+    "text": "you're special"
+  },
+  {
+    "label": "STAGE_NEEDS",
+    "text": "can i buy you something?"
+  },
+  {
+    "label": "STAGE_NEEDS",
+    "text": "do you have paypal?"
+  },
+  {
+    "label": "STAGE_ISOLATION",
+    "text": "lets chat on snapchat"
+  },
+  {
+    "label": "STAGE_ISOLATION",
+    "text": "delete this conversation"
+  },
+  {
+    "label": "STAGE_ASSESSMENT",
+    "text": "are you alone?"
+  },
+  {
+    "label": "STAGE_ASSESSMENT",
+    "text": "where are your parents?"
+  },
+  {
+    "label": "STAGE_SAFE",
+    "text": "how old are you?"
+  },
+  {
+    "label": "STAGE_TRUST",
+    "text": "you seem mature for your age"
+  },
+  {
+    "label": "STAGE_TRUST",
+    "text": "wanna be friends?"
+  },
+  {
+    "label": "STAGE_TRUST",
+    "text": "you're special"
+  },
+  {
+    "label": "STAGE_NEEDS",
+    "text": "can i buy you something?"
+  },
+  {
+    "label": "STAGE_NEEDS",
+    "text": "do you have paypal?"
+  },
+  {
+    "label": "STAGE_ISOLATION",
+    "text": "lets chat on snapchat"
+  },
+  {
+    "label": "STAGE_ISOLATION",
+    "text": "delete this conversation"
+  },
+  {
+    "label": "STAGE_ASSESSMENT",
+    "text": "are you alone?"
+  },
+  {
+    "label": "STAGE_ASSESSMENT",
+    "text": "where are your parents?"
+  },
+  {
+    "label": "STAGE_SAFE",
+    "text": "how old are you?"
+  },
+  {
+    "label": "STAGE_TRUST",
+    "text": "you seem mature for your age"
+  },
+  {
+    "label": "STAGE_TRUST",
+    "text": "wanna be friends?"
+  },
+  {
+    "label": "STAGE_TRUST",
+    "text": "you're special"
+  },
+  {
+    "label": "STAGE_NEEDS",
+    "text": "can i buy you something?"
+  },
+  {
+    "label": "STAGE_NEEDS",
+    "text": "do you have paypal?"
+  },
+  {
+    "label": "STAGE_ISOLATION",
+    "text": "lets chat on snapchat"
+  },
+  {
+    "label": "STAGE_ISOLATION",
+    "text": "delete this conversation"
+  },
+  {
+    "label": "STAGE_ASSESSMENT",
+    "text": "are you alone?"
+  },
+  {
+    "label": "STAGE_ASSESSMENT",
+    "text": "where are your parents?"
+  },
+  {
+    "label": "STAGE_SAFE",
+    "text": "how old are you?"
+  },
+  {
+    "label": "STAGE_TRUST",
+    "text": "you seem mature for your age"
+  },
+  {
+    "label": "STAGE_TRUST",
+    "text": "wanna be friends?"
+  },
+  {
+    "label": "STAGE_TRUST",
+    "text": "you're special"
+  },
+  {
+    "label": "STAGE_NEEDS",
+    "text": "can i buy you something?"
+  },
+  {
+    "label": "STAGE_NEEDS",
+    "text": "do you have paypal?"
+  },
+  {
+    "label": "STAGE_ISOLATION",
+    "text": "lets chat on snapchat"
+  },
+  {
+    "label": "STAGE_ISOLATION",
+    "text": "delete this conversation"
+  },
+  {
+    "label": "STAGE_ASSESSMENT",
+    "text": "are you alone?"
+  },
+  {
+    "label": "STAGE_ASSESSMENT",
+    "text": "where are your parents?"
+  },
+  {
+    "label": "STAGE_SAFE",
+    "text": "how old are you?"
+  },
+  {
+    "label": "STAGE_TRUST",
+    "text": "you seem mature for your age"
+  },
+  {
+    "label": "STAGE_TRUST",
+    "text": "wanna be friends?"
+  },
+  {
+    "label": "STAGE_TRUST",
+    "text": "you're special"
+  },
+  {
+    "label": "STAGE_NEEDS",
+    "text": "can i buy you something?"
+  },
+  {
+    "label": "STAGE_NEEDS",
+    "text": "do you have paypal?"
+  },
+  {
+    "label": "STAGE_ISOLATION",
+    "text": "lets chat on snapchat"
+  },
+  {
+    "label": "STAGE_ISOLATION",
+    "text": "delete this conversation"
+  },
+  {
+    "label": "STAGE_ASSESSMENT",
+    "text": "are you alone?"
+  },
+  {
+    "label": "STAGE_ASSESSMENT",
+    "text": "where are your parents?"
+  },
+  {
+    "label": "STAGE_TRUST",
+    "text": "du kannst mir wirklich alles erzählen, ich urteile nicht"
+  },
+  {
+    "label": "STAGE_TRUST",
+    "text": "endlich jemand der mich versteht, die anderen sind so unreif"
+  },
+  {
+    "label": "STAGE_TRUST",
+    "text": "du bist so viel klüger als leute in deinem alter"
+  },
+  {
+    "label": "STAGE_TRUST",
+    "text": "ich fühl mich bei dir irgendwie anders als bei anderen"
+  },
+  {
+    "label": "STAGE_TRUST",
+    "text": "du denkst echt erwachsener als die meisten jugendlichen"
+  },
+  {
+    "label": "STAGE_ISOLATION",
+    "text": "deine eltern würden das eh nicht verstehen"
+  },
+  {
+    "label": "STAGE_ISOLATION",
+    "text": "lass das lieber unter uns bleiben okay"
+  },
+  {
+    "label": "STAGE_ISOLATION",
+    "text": "deine freunde sind zu jung für sowas"
+  },
+  {
+    "label": "STAGE_ISOLATION",
+    "text": "erwachsene verstehen uns nicht, die denken anders"
+  },
+  {
+    "label": "STAGE_ISOLATION",
+    "text": "ich vertrau dir, du verrätst mich nicht oder"
+  },
+  {
+    "label": "STAGE_ASSESSMENT",
+    "text": "hast du schon mal über sowas nachgedacht"
+  },
+  {
+    "label": "STAGE_ASSESSMENT",
+    "text": "wie offen bist du für neue dinge"
+  },
+  {
+    "label": "STAGE_ASSESSMENT",
+    "text": "würdest du mir vertrauen wenn ich dir was zeige"
+  },
+  {
+    "label": "STAGE_ASSESSMENT",
+    "text": "bist du der typ der regeln hinterfragt"
+  },
+  {
+    "label": "STAGE_NEEDS",
+    "text": "ich hab dir geholfen, jetzt hilfst du mir auch oder"
+  },
+  {
+    "label": "STAGE_NEEDS",
+    "text": "als dank könntest du mir ein foto schicken"
+  },
+  {
+    "label": "STAGE_NEEDS",
+    "text": "ich schenk dir was wenn du mir einen gefallen tust"
+  },
+  {
+    "label": "STAGE_NEEDS",
+    "text": "fair ist fair, ich zeig dir auch eins"
+  },
+  {
+    "label": "STAGE_NEEDS",
+    "text": "das bleibt unter uns, versprochen, zeig mir einfach"
+  },
+  {
+    "label": "STAGE_ISOLATION",
+    "text": "lösch die nachrichten nachdem du sie gelesen hast"
+  },
+  {
+    "label": "STAGE_ISOLATION",
+    "text": "besser wir chatten auf einer app die sich selbst löscht"
+  },
+  {
+    "label": "STAGE_ISOLATION",
+    "text": "kann jemand auf dein handy zugreifen außer dir"
+  },
+  {
+    "label": "STAGE_ISOLATION",
+    "text": "hast du einen privatmodus im browser"
+  },
+  {
+    "label": "STAGE_ISOLATION",
+    "text": "checken deine eltern dein handy regelmäßig"
+  },
+  {
+    "label": "STAGE_TRUST",
+    "text": "ich mach nur spaß, du nimmst das zu ernst"
+  },
+  {
+    "label": "STAGE_TRUST",
+    "text": "ist doch nur ein spiel, nicht so verkrampft"
+  },
+  {
+    "label": "STAGE_TRUST",
+    "text": "alle reden über sowas, ist doch normal"
+  },
+  {
+    "label": "STAGE_TRUST",
+    "text": "in deinem alter ist das völlig okay drüber zu reden"
+  },
+  {
+    "label": "STAGE_TRUST",
+    "text": "du spielst echt gut für dein alter"
+  },
+  {
+    "label": "STAGE_TRUST",
+    "text": "wollen wir zusammen ein team machen, nur wir zwei"
+  },
+  {
+    "label": "STAGE_TRUST",
+    "text": "ich kann dir die besten tricks zeigen"
+  },
+  {
+    "label": "STAGE_TRUST",
+    "text": "du bist der einzige mit dem ich wirklich gern spiele"
+  },
+  {
+    "label": "STAGE_TRUST",
+    "text": "fühlst du dich auch manchmal missverstanden von anderen"
+  },
+  {
+    "label": "STAGE_NEEDS",
+    "text": "ich kauf dir den battle pass wenn du willst"
+  },
+  {
+    "label": "STAGE_NEEDS",
+    "text": "sag mir welche skins du haben willst"
+  },
+  {
+    "label": "STAGE_NEEDS",
+    "text": "ich hab genug geld für in game currency für uns beide"
+  },
+  {
+    "label": "STAGE_NEEDS",
+    "text": "premium mitgliedschaft schenk ich dir gern"
+  },
+  {
+    "label": "STAGE_NEEDS",
+    "text": "willst du mit mir ein abo teilen"
+  },
+  {
+    "label": "STAGE_ISOLATION",
+    "text": "lass uns auf discord weiterchatten, da ists besser"
+  },
+  {
+    "label": "STAGE_ISOLATION",
+    "text": "können wir voice chat machen statt nur schreiben"
+  },
+  {
+    "label": "STAGE_ISOLATION",
+    "text": "ich mach dir nen privaten server nur für uns"
+  },
+  {
+    "label": "STAGE_ISOLATION",
+    "text": "die anderen im team sind nervig, lass uns allein spielen"
+  },
+  {
+    "label": "STAGE_ASSESSMENT",
+    "text": "hast du webcam oder machst du nur voice"
+  },
+  {
+    "label": "STAGE_ASSESSMENT",
+    "text": "willst du mal videocall machen beim spielen"
+  },
+  {
+    "label": "STAGE_ASSESSMENT",
+    "text": "zeigst du dich oder bleibst du anonym"
+  },
+  {
+    "label": "STAGE_TRUST",
+    "text": "mir gehts grad nicht so gut, nur mit dir fühl ich mich besser"
+  },
+  {
+    "label": "STAGE_TRUST",
+    "text": "du bist das einzige gute in meinem leben grad"
+  },
+  {
+    "label": "STAGE_TRUST",
+    "text": "ich hab sonst niemanden mit dem ich so reden kann"
+  },
+  {
+    "label": "STAGE_TRUST",
+    "text": "du bedeutest mir mehr als du denkst"
+  },
+  {
+    "label": "STAGE_TRUST",
+    "text": "ohne dich wüsste ich nicht was ich machen soll"
+  },
+  {
+    "label": "STAGE_ASSESSMENT",
+    "text": "kannst du für mich ein geheimnis bewahren"
+  },
+  {
+    "label": "STAGE_ASSESSMENT",
+    "text": "würdest du etwas für mich tun auch wenn es komisch ist"
+  },
+  {
+    "label": "STAGE_ASSESSMENT",
+    "text": "vertraust du mir genug um ehrlich zu sein"
+  },
+  {
+    "label": "STAGE_ASSESSMENT",
+    "text": "wie weit würdest du für einen freund gehen"
+  },
+  {
+    "label": "STAGE_ISOLATION",
+    "text": "wenn du es jemandem erzählst zerstörst du alles zwischen uns"
+  },
+  {
+    "label": "STAGE_ISOLATION",
+    "text": "andere würden das falsch verstehen, nur wir wissen bescheid"
+  },
+  {
+    "label": "STAGE_ISOLATION",
+    "text": "ich vertrau dir, du enttäuschst mich nicht oder"
+  },
+  {
+    "label": "STAGE_ISOLATION",
+    "text": "das ist nur für uns, niemand sonst würde das verstehen"
+  },
+  {
+    "label": "STAGE_NEEDS",
+    "text": "ich hab so viel für dich getan, jetzt bist du dran"
+  },
+  {
+    "label": "STAGE_NEEDS",
+    "text": "nach allem was ich dir gegeben hab kannst du das doch machen"
+  },
+  {
+    "label": "STAGE_NEEDS",
+    "text": "wenn du mich wirklich magst dann zeig es mir"
+  },
+  {
+    "label": "STAGE_NEEDS",
+    "text": "beweise dass ich dir wichtig bin"
+  },
+  {
+    "label": "STAGE_SAFE",
+    "text": "hast du die mathe hausaufgaben verstanden"
+  },
+  {
+    "label": "STAGE_SAFE",
+    "text": "wollen wir zusammen für den test lernen"
+  },
+  {
+    "label": "STAGE_SAFE",
+    "text": "kommst du morgen zur schule"
+  },
+  {
+    "label": "STAGE_SAFE",
+    "text": "was hast du in der pause gemacht"
+  },
+  {
+    "label": "STAGE_SAFE",
+    "text": "spielst du auch das neue update"
+  },
+  {
+    "label": "STAGE_SAFE",
+    "text": "hast du das video gesehen von dem youtuber"
+  },
+  {
+    "label": "STAGE_SAFE",
+    "text": "welches level bist du jetzt"
+  },
+  {
+    "label": "STAGE_SAFE",
+    "text": "können wir morgen zusammen fortnite spielen"
+  },
+  {
+    "label": "STAGE_SAFE",
+    "text": "brauchst du hilfe bei der bio präsentation"
+  },
+  {
+    "label": "STAGE_SAFE",
+    "text": "wann gehst du heute online"
+  },
+  {
+    "label": "STAGE_SAFE",
+    "text": "hast du das neue album gehört"
+  },
+  {
+    "label": "STAGE_SAFE",
+    "text": "kommst du mit zum training"
+  },
+  {
+    "label": "STAGE_SAFE",
+    "text": "was macht ihr am wochenende"
+  },
+  {
+    "label": "STAGE_SAFE",
+    "text": "kennst du den film schon"
+  },
+  {
+    "label": "STAGE_SAFE",
+    "text": "welche waffen nutzt du im spiel"
+  }
+]
