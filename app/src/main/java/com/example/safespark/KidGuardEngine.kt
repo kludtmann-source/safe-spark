@@ -9,6 +9,7 @@ import com.example.safespark.ml.AdultChildDetector
 import com.example.safespark.ml.ContextAwareDetector
 import com.example.safespark.ml.StageProgressionDetector
 import com.example.safespark.ml.OspreyLocalDetector
+import com.example.safespark.ml.ConversationBuffer
 import com.example.safespark.detection.SemanticDetector
 import com.example.safespark.model.GroomingIntent
 import com.example.safespark.logging.DetectionLogger
@@ -472,10 +473,12 @@ class KidGuardEngine(private val context: Context) : Closeable {
         } // Ende if (!containsNegation)
 
         // 2. ML-Prediction
+        var detectedStage = "UNKNOWN"
         val mlPrediction = mlDetector.predict(input)
         if (mlPrediction != null && mlPrediction.isDangerous) {
             scores["ML"] = mlPrediction.confidence
             detectedPatterns.add("ML: ${mlPrediction.stage}")
+            detectedStage = mlPrediction.stage  // Stage vom ML übernehmen!
             if (mlPrediction.confidence > 0.7f) {
                 detectionMethod = "Machine Learning"
                 explanation = "ML-Modell erkannte: ${mlPrediction.stage}-Phase (${(mlPrediction.confidence * 100).toInt()}% Konfidenz)"
@@ -532,7 +535,9 @@ class KidGuardEngine(private val context: Context) : Closeable {
             isRisk = finalScore > 0.5f,
             explanation = explanation,
             detectionMethod = detectionMethod,
-            detectedPatterns = detectedPatterns
+            detectedPatterns = detectedPatterns,
+            stage = detectedStage,
+            confidence = finalScore
         )
     }
 
@@ -687,9 +692,95 @@ class KidGuardEngine(private val context: Context) : Closeable {
     }
     
     /**
+     * Analysiert Text mit Konversationskontext
+     *
+     * Nutzt den ConversationBuffer um Nachrichten pro Kontakt zu sammeln
+     * und ermöglicht Osprey, Eskalationsmuster über den Verlauf zu erkennen.
+     *
+     * @param input Der zu analysierende Text
+     * @param appPackage Package-Name der Quell-App
+     * @param chatIdentifier Chat-Fenster-Titel oder ähnliches (wird pseudonymisiert)
+     * @param isLocalUser true wenn die Nachricht vom Kind stammt, false wenn vom Kontakt
+     * @return AnalysisResult mit Score und Erklärung
+     */
+    fun analyzeWithConversation(
+        input: String,
+        appPackage: String = "unknown",
+        chatIdentifier: String = "default",
+        isLocalUser: Boolean = false
+    ): AnalysisResult {
+        if (input.isBlank()) {
+            return AnalysisResult(
+                score = 0.0f,
+                isRisk = false,
+                explanation = "Leerer Text",
+                detectionMethod = "None"
+            )
+        }
+
+        // 1. Generiere pseudonymisierte Contact-ID
+        val contactId = ConversationBuffer.generateContactId(appPackage, chatIdentifier)
+
+        // 2. Füge Nachricht zum Buffer hinzu
+        val message = ConversationBuffer.ConversationMessage(
+            text = input,
+            authorId = if (isLocalUser) "child" else contactId,
+            timestamp = System.currentTimeMillis(),
+            isLocalUser = isLocalUser
+        )
+        ConversationBuffer.addMessage(contactId, message)
+
+        // 3. Hole Konversationskontext
+        val conversation = ConversationBuffer.getConversation(contactId)
+        val contextFeatures = ConversationBuffer.getContextFeatures(contactId)
+
+        // 4. Analysiere mit Osprey auf Konversationsebene (wenn verfügbar)
+        ospreyDetector?.let { detector ->
+            try {
+                if (conversation.size >= 2) {
+                    // Genug Kontext für Konversationsanalyse
+                    val ospreyResult = detector.analyzeConversation(conversation, contextFeatures)
+
+                    if (ospreyResult.isRisk) {
+                        Log.w(TAG, "⚠️ OSPREY CONVERSATION RISK: ${ospreyResult.stage}")
+
+                        // Logge Finding
+                        DetectionLogger.logFinding(
+                            text = input,
+                            score = ospreyResult.confidence,
+                            stage = GroomingStage.fromString(ospreyResult.stage),
+                            method = "Osprey-Conversation",
+                            pattern = ospreyResult.dominantProgression
+                        )
+
+                        return AnalysisResult(
+                            score = ospreyResult.confidence,
+                            isRisk = true,
+                            stage = ospreyResult.stage,
+                            explanation = ospreyResult.explanation,
+                            detectionMethod = "Osprey-Conversation",
+                            detectedPatterns = listOfNotNull(ospreyResult.dominantProgression),
+                            confidence = ospreyResult.confidence,
+                            allStageScores = ospreyResult.allStageScores
+                        )
+                    }
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "⚠️ Osprey conversation analysis failed", e)
+            }
+        }
+
+        // 5. Fallback: Einzelnachricht-Analyse
+        return analyzeTextWithExplanation(input, appPackage)
+    }
+
+    /**
      * Schließt die Engine und gibt Ressourcen frei
      */
     override fun close() {
+        // Buffer leeren (DSGVO)
+        ConversationBuffer.clearAll()
+
         mlDetector.close()
         semanticDetector?.close()
         ospreyDetector?.close()
