@@ -93,14 +93,14 @@ enum class GroomingIntent(
 ) {
     SUPERVISION_CHECK(
         intentName = "SUPERVISION_CHECK",
-        threshold = 0.75f,
+        threshold = 0.80f,  // erhöht von 0.75f
         stage = "ASSESSMENT",
         explanation = "Täter prüft ob Kind alleine/unbeaufsichtigt ist"
     ),
 
     SECRECY_REQUEST(
         intentName = "SECRECY_REQUEST",
-        threshold = 0.78f,
+        threshold = 0.85f,  // erhöht von 0.78f
         stage = "SECRECY_ENFORCEMENT",
         explanation = "Täter fordert Geheimhaltung ('Sag niemandem davon')"
     ),

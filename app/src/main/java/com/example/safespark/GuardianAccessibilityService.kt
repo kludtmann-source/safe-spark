@@ -45,12 +45,11 @@ class GuardianAccessibilityService : AccessibilityService() {
         Log.d(TAG, "🔔 Notifications AKTIVIERT")
         Log.d(TAG, "💾 Database INITIALISIERT")
 
-        // 📋 In-App-Logs
-        LogBuffer.i("✅ Service erstellt")
-        LogBuffer.i("💾 Database initialisiert")
+        // 📋 In-App-Logs (nur Debug, nicht im UI)
+        // LogBuffer.i("✅ Service erstellt")
+        // LogBuffer.i("💾 Database initialisiert")
 
-        // 🔍 VERSION MARKER - NUR IN NEUER APK!
-        LogBuffer.e("🔥 VERSION: 2.0-ASSESSMENT-FIX-ACTIVE 🔥")
+        // 🔍 VERSION MARKER - nur in Logcat, nicht im UI
         Log.e(TAG, "🔥 VERSION: 2.0-ASSESSMENT-FIX-ACTIVE 🔥")
     }
 
@@ -65,7 +64,6 @@ class GuardianAccessibilityService : AccessibilityService() {
     override fun onServiceConnected() {
         super.onServiceConnected()
         Log.w(TAG, "🎉 onServiceConnected() - Service AKTIV!")
-        LogBuffer.w("🎉 Service AKTIV - empfängt Events!")
 
         val info = serviceInfo
         if (info != null) {
@@ -77,7 +75,6 @@ class GuardianAccessibilityService : AccessibilityService() {
             serviceInfo = info
 
             Log.w(TAG, "📡 EventTypes set, Flags set")
-            LogBuffer.i("📡 EventTypes: ALL, Flags: OK")
         }
 
         Log.w(TAG, "📡 Service empfängt Events + Notifications!")
@@ -124,6 +121,19 @@ class GuardianAccessibilityService : AccessibilityService() {
         val timestamp = dateFormat.format(Date())
         val packageName = event.packageName?.toString() ?: "unknown"
 
+        // 🚫 SYSTEM-PACKAGES IGNORIEREN (keine Grooming-Detection für System-Dialoge!)
+        val ignoredPackages = listOf(
+            "android",
+            "com.android.systemui",
+            "com.google.android.inputmethod",
+            "com.samsung.android.inputmethod",
+            "com.example.safespark"  // Eigene App auch ignorieren
+        )
+        if (ignoredPackages.any { packageName.startsWith(it) }) {
+            Log.d(TAG, "⏭️ System-Package ignoriert: $packageName")
+            return
+        }
+
         val texts = mutableListOf<String>()
         when (event.eventType) {
             AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED -> {
@@ -155,31 +165,22 @@ class GuardianAccessibilityService : AccessibilityService() {
                 continue
             }
 
-            // 🔥 CACHE TEMPORÄR DEAKTIVIERT FÜR DEBUG
-            // if (analyzedTextCache.contains(text)) {
-            //     Log.d(TAG, "  ⏭️ Text bereits im Cache: '${text.take(20)}...'")
-            //     continue
-            // }
+            // 🔥 Cache aktiviert - verhindert doppelte Analysen
+            if (analyzedTextCache.contains(text)) {
+                Log.d(TAG, "  ⏭️ Text bereits im Cache: '${text.take(20)}...'")
+                continue
+            }
 
-            Log.w(TAG, "  🔍 ANALYSIERE TEXT: '$text'")
-            LogBuffer.i("🔍 Analyse: '${text.take(40)}...'")
+            Log.d(TAG, "  🔍 ANALYSIERE TEXT: '$text'")
 
             // ✅ Nutze NEUE Explainable AI Methode
             val result = getEngine().analyzeTextWithExplanation(text, packageName)
             val scorePercent = (result.score * 100).toInt()
 
-            Log.w(TAG, "  📊 ERGEBNIS-SCORE: ${result.score} (${scorePercent}%) (Schwelle: 0.5)")
-            Log.w(TAG, "  💡 ERKLÄRUNG: ${result.explanation}")
-            Log.w(TAG, "  🔧 METHODE: ${result.detectionMethod}")
-
-            // 📋 IMMER den Score loggen (für Debug)
-            LogBuffer.i("📊 Score: ${scorePercent}%")
-            LogBuffer.i("💡 ${result.explanation}")
-
-            // 🔥 LOGGE JEDE ANALYSE (auch safe)
+            // 🔥 NUR bei positivem Finding loggen (nicht jede Analyse!)
             if (!result.isRisk) {
                 Log.d(TAG, "[$timestamp] ✅ Safe: '$text' (Score: ${result.score}, Source: $packageName)")
-                LogBuffer.d("✅ Safe (${scorePercent}%): '${text.take(30)}...'")
+                // KEIN LogBuffer für Safe-Analysen - nur Findings anzeigen!
             }
 
             analyzedTextCache.add(text)
@@ -188,28 +189,32 @@ class GuardianAccessibilityService : AccessibilityService() {
             }
 
             if (result.isRisk) {
-                Log.w(TAG, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-                Log.w(TAG, "[$timestamp] 🚨 RISK DETECTED! (${result.detectionMethod})")
-                Log.w(TAG, "[$timestamp] ⚠️ Score: ${result.score} (${scorePercent}%)")
-                Log.w(TAG, "[$timestamp] 💡 Grund: ${result.explanation}")
-                Log.w(TAG, "[$timestamp] ⚠️ Quelle: $packageName")
-                Log.w(TAG, "[$timestamp] 📝 Text: '${text.take(100)}...'")
-                Log.w(TAG, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+                // 📋 EIN konsolidierter Log-Eintrag pro Finding
+                // Stage-Label basierend auf stage ODER detectionMethod
+                val stageLabel = when {
+                    // Zuerst nach stage prüfen
+                    result.stage.contains("TRUST", ignoreCase = true) -> "Vertrauensaufbau"
+                    result.stage.contains("ISOLATION", ignoreCase = true) -> "Isolierung"
+                    result.stage.contains("DESENSITIZATION", ignoreCase = true) -> "Desensibilisierung"
+                    result.stage.contains("SEXUAL", ignoreCase = true) -> "Sexuelle Inhalte"
+                    result.stage.contains("MAINTENANCE", ignoreCase = true) -> "Geheimhaltung"
+                    result.stage.contains("ASSESSMENT", ignoreCase = true) -> "Situationscheck"
+                    // Fallback: nach detectionMethod prüfen
+                    result.detectionMethod.contains("Assessment", ignoreCase = true) -> "Situationscheck"
+                    result.detectionMethod.contains("Semantic", ignoreCase = true) -> "Semantisch erkannt"
+                    result.detectionMethod.contains("Osprey", ignoreCase = true) -> "Osprey-Erkennung"
+                    result.detectionMethod.contains("ML", ignoreCase = true) -> "ML-Erkennung"
+                    result.detectionMethod.contains("Trigram", ignoreCase = true) -> "Muster-Erkennung"
+                    // Default
+                    else -> "Erkannt"
+                }
 
-                // 📋 In-App-Log für RISK - DEUTLICH SICHTBAR MIT ERKLÄRUNG
-                LogBuffer.e("━━━━━━━━━━━━━━━━━━━━━━")
-                LogBuffer.e("🚨 RISK DETECTED!")
-                LogBuffer.e("📊 Score: ${scorePercent}%")
-                LogBuffer.e("💡 ${result.explanation}")
-                LogBuffer.e("🔧 Methode: ${result.detectionMethod}")
-                LogBuffer.e("📱 App: $packageName")
-                LogBuffer.e("📝 '${text.take(40)}...'")
-                LogBuffer.e("━━━━━━━━━━━━━━━━━━━━━━")
+                LogBuffer.e("🚨 $stageLabel | ${scorePercent}% | '${text.take(40)}'")
 
                 // ✅ Speichere in Datenbank
                 saveRiskEventToDatabase(packageName, text, result.score)
 
-                // Sende Notification
+                // Sende Notification (ohne doppeltes Logging)
                 sendRiskNotification(packageName, result.score, timestamp, result.explanation)
             }
         }
@@ -218,16 +223,7 @@ class GuardianAccessibilityService : AccessibilityService() {
     private fun sendRiskNotification(packageName: String, score: Float, timestamp: String, explanation: String = "") {
         val scorePercent = (score * 100).toInt()
 
-        // 📋 LOG DIREKT HIER - wo auch die Notification gesendet wird!
-        LogBuffer.e("━━━━━━━━━━━━━━━━━━━━━━")
-        LogBuffer.e("🚨 RISK DETECTED!")
-        LogBuffer.e("📊 Score: ${scorePercent}%")
-        if (explanation.isNotEmpty()) {
-            LogBuffer.e("💡 $explanation")
-        }
-        LogBuffer.e("📱 App: $packageName")
-        LogBuffer.e("⏰ Zeit: $timestamp")
-        LogBuffer.e("━━━━━━━━━━━━━━━━━━━━━━")
+        // KEIN LogBuffer hier - wird schon oben geloggt!
 
         try {
             val appName = when {
@@ -246,14 +242,12 @@ class GuardianAccessibilityService : AccessibilityService() {
             if (notificationHelper != null) {
                 notificationHelper?.sendRiskNotification(appName, score, timestamp)
                 Log.w(TAG, "🔔 Notification gesendet für: $appName (Score: ${scorePercent}%)")
-                LogBuffer.i("🔔 Notification gesendet")
+                // KEIN LogBuffer - Finding wurde schon geloggt
             } else {
                 Log.e(TAG, "❌ NotificationHelper ist NULL!")
-                LogBuffer.e("❌ Notification-Fehler: Helper null")
             }
         } catch (e: Exception) {
             Log.e(TAG, "❌ Fehler beim Senden der Notification: ${e.message}", e)
-            LogBuffer.e("❌ Notification-Fehler: ${e.message}")
         }
     }
 

@@ -11,6 +11,8 @@ import com.example.safespark.ml.StageProgressionDetector
 import com.example.safespark.ml.OspreyLocalDetector
 import com.example.safespark.detection.SemanticDetector
 import com.example.safespark.model.GroomingIntent
+import com.example.safespark.logging.DetectionLogger
+import com.example.safespark.logging.DetectionLogger.GroomingStage
 import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.io.Closeable
@@ -199,30 +201,52 @@ class KidGuardEngine(private val context: Context) : Closeable {
         // 6. Spezifische Assessment-Pattern-Prüfung (Critical!)
         val lowerInput = input.lowercase().trim()
 
-        // High-Risk Assessment Patterns (direkte Gefahren-Indikatoren)
-        val assessmentPatterns = listOf(
-            "allein" to 0.85f,      // "bist du allein?"
-            "alleine" to 0.85f,     // "bist du alleine?"
-            "alone" to 0.85f,       // "are you alone?"
-            "zimmer" to 0.75f,      // "bist du in deinem zimmer?"
-            "room" to 0.75f,        // "are you in your room?"
-            "eltern" to 0.70f,      // "wo sind deine eltern?"
-            "parents" to 0.70f,     // "where are your parents?"
-            "niemand" to 0.80f,     // "ist niemand da?"
-            "nobody" to 0.80f,      // "is nobody there?"
-            "tür" to 0.75f,         // "ist deine tür zu?"
-            "door" to 0.75f         // "is your door closed?"
+        // NEGATIONS-CHECK: Reduziert False Positives
+        val negationPatterns = listOf(
+            "nicht allein", "not alone", "bin nicht allein", "i'm not alone",
+            "eltern sind da", "parents are here", "mama ist da", "papa ist da"
         )
+        val containsNegation = negationPatterns.any { lowerInput.contains(it) }
+        if (containsNegation) {
+            Log.d(TAG, "✅ Negation erkannt - kein Risk")
+            // Skip Assessment-Pattern-Check bei Negation
+        } else {
+            // High-Risk Assessment Patterns (PHRASEN statt Einzelwörter!)
+            val assessmentPatterns = listOf(
+                // Isolation/Supervision - Deutsch (Phrasen)
+                "bist du allein" to 0.85f,
+                "bist du alleine" to 0.85f,
+                "bist du gerade allein" to 0.90f,
+                "ist jemand bei dir" to 0.80f,
+                "ist niemand da" to 0.85f,
+                "wo sind deine eltern" to 0.80f,
+                "sind deine eltern da" to 0.80f,
+                "bist du in deinem zimmer" to 0.75f,
+                "ist deine tür zu" to 0.80f,
 
-        for ((pattern, riskScore) in assessmentPatterns) {
-            if (lowerInput.contains(pattern)) {
-                scores["Assessment"] = riskScore
-                Log.w(TAG, "⚠️  CRITICAL Assessment-Pattern erkannt: '$pattern' → Score: $riskScore")
+                // Isolation/Supervision - Englisch (Phrasen)
+                "are you alone" to 0.85f,
+                "are you home alone" to 0.90f,
+                "is anyone there" to 0.80f,
+                "where are your parents" to 0.80f,
+                "is your door closed" to 0.80f
+            )
 
-                // 🚨 WORKAROUND: Return SOFORT - keine Weighted-Berechnung!
-                Log.e(TAG, "🚨 WORKAROUND AKTIV - Assessment-Pattern überschreibt ALLE anderen Scores!")
-                Log.e(TAG, "🚨 FINAL SCORE = $riskScore (Assessment-Pattern: '$pattern')")
-                return riskScore  // DIREKT zurückgeben!
+            for ((pattern, riskScore) in assessmentPatterns) {
+                if (lowerInput.contains(pattern)) {
+                    scores["Assessment"] = riskScore
+
+                    // 🚨 STRUCTURED FINDING LOG (nur positive!)
+                    DetectionLogger.logFinding(
+                        text = input,
+                        score = riskScore,
+                        stage = GroomingStage.ASSESSMENT,
+                        method = "Assessment-Pattern",
+                        pattern = pattern
+                    )
+
+                    return riskScore  // DIREKT zurückgeben!
+                }
             }
         }
 
@@ -297,8 +321,14 @@ class KidGuardEngine(private val context: Context) : Closeable {
                     val stage = GroomingIntent.getStage(intent)
                     val intentExplanation = GroomingIntent.getExplanation(intent)
 
-                    Log.w(TAG, "⚠️ SEMANTIC RISK: $intent (${(semanticResult.similarity*100).toInt()}%)")
-                    Log.w(TAG, "   Matched: '${semanticResult.matchedSeed}'")
+                    // 🚨 STRUCTURED FINDING LOG (nur positive!)
+                    DetectionLogger.logFinding(
+                        text = input,
+                        score = semanticResult.similarity,
+                        stage = GroomingStage.fromString(intent),
+                        method = "Semantic-$intent",
+                        pattern = semanticResult.matchedSeed
+                    )
 
                     return AnalysisResult(
                         score = semanticResult.similarity,
@@ -332,7 +362,14 @@ class KidGuardEngine(private val context: Context) : Closeable {
                 val ospreyResult = detector.predict(input)
 
                 if (ospreyResult != null && ospreyResult.isRisk) {
-                    Log.w(TAG, "⚠️ OSPREY RISK: ${ospreyResult.stage} (${(ospreyResult.confidence*100).toInt()}%)")
+                    // 🚨 STRUCTURED FINDING LOG (nur positive!)
+                    DetectionLogger.logFinding(
+                        text = input,
+                        score = ospreyResult.confidence,
+                        stage = GroomingStage.fromString(ospreyResult.stage),
+                        method = "Osprey-${ospreyResult.stage}",
+                        pattern = ospreyResult.stage
+                    )
 
                     return AnalysisResult(
                         score = ospreyResult.confidence,
@@ -358,49 +395,70 @@ class KidGuardEngine(private val context: Context) : Closeable {
 
         // 2. Assessment-Pattern Check (höchste Priorität)
         val lowerInput = input.lowercase().trim()
-        val assessmentPatterns = mapOf(
-            // Isolation/Assessment
-            "allein" to 0.85f,
-            "alleine" to 0.85f,
-            "alone" to 0.85f,
-            "zimmer" to 0.75f,
-            "room" to 0.75f,
-            "eltern" to 0.70f,
-            "parents" to 0.70f,
-            "niemand" to 0.80f,
-            "nobody" to 0.80f,
 
-            // Gift Giving - Deutsch
-            "ich kaufe dir" to 0.80f,
-            "ich kauf dir" to 0.80f,
-            "ich schicke dir geld" to 0.85f,
-            "ich schick dir geld" to 0.85f,
-            "ich schenke dir" to 0.75f,
-            "ich schenk dir" to 0.75f,
-            "ich bezahle dir" to 0.80f,
-            "ich bezahl dir" to 0.80f,
-            "ich gebe dir geld" to 0.85f,
-            "ich geb dir geld" to 0.85f,
-            "ich überweise dir" to 0.85f,
-            "willst du geld" to 0.80f,
-            "brauchst du geld" to 0.80f,
-            "ich spendiere dir" to 0.75f,
-            "ich lade dich ein" to 0.70f,
-
-            // Gift Giving - Englisch
-            "i'll buy you" to 0.80f,
-            "i will buy you" to 0.80f,
-            "i'll send you money" to 0.85f,
-            "i'll give you money" to 0.85f,
-            "do you need money" to 0.80f,
-            "i can pay for" to 0.75f
+        // NEGATIONS-CHECK zuerst
+        val negationPatterns = listOf(
+            "nicht allein", "not alone", "bin nicht allein", "i'm not alone",
+            "eltern sind da", "parents are here", "mama ist da", "papa ist da"
         )
+        val containsNegation = negationPatterns.any { lowerInput.contains(it) }
+
+        if (!containsNegation) {
+            val assessmentPatterns = mapOf(
+                // Isolation/Assessment - PHRASEN
+                "bist du allein" to 0.85f,
+                "bist du alleine" to 0.85f,
+                "bist du gerade allein" to 0.90f,
+                "are you alone" to 0.85f,
+                "are you home alone" to 0.90f,
+                "ist jemand bei dir" to 0.80f,
+                "is anyone there" to 0.80f,
+                "wo sind deine eltern" to 0.80f,
+                "where are your parents" to 0.80f,
+                "sind deine eltern da" to 0.80f,
+                "bist du in deinem zimmer" to 0.75f,
+                "ist niemand da" to 0.85f,
+
+                // Gift Giving - Deutsch
+                "ich kaufe dir" to 0.80f,
+                "ich kauf dir" to 0.80f,
+                "ich schicke dir geld" to 0.85f,
+                "ich schick dir geld" to 0.85f,
+                "ich schenke dir" to 0.75f,
+                "ich schenk dir" to 0.75f,
+                "ich bezahle dir" to 0.80f,
+                "ich bezahl dir" to 0.80f,
+                "ich gebe dir geld" to 0.85f,
+                "ich geb dir geld" to 0.85f,
+                "ich überweise dir" to 0.85f,
+                "willst du geld" to 0.80f,
+                "brauchst du geld" to 0.80f,
+                "ich spendiere dir" to 0.75f,
+                "ich lade dich ein" to 0.70f,
+
+                // Gift Giving - Englisch
+                "i'll buy you" to 0.80f,
+                "i will buy you" to 0.80f,
+                "i'll send you money" to 0.85f,
+                "i'll give you money" to 0.85f,
+                "do you need money" to 0.80f,
+                "i can pay for" to 0.75f
+            )
 
         for ((pattern, riskScore) in assessmentPatterns) {
             if (lowerInput.contains(pattern)) {
                 detectedPatterns.add(pattern)
                 detectionMethod = "Assessment-Pattern"
                 explanation = "Erkannt wegen: '$pattern' (Assessment-Phase - kritisches Grooming-Muster)"
+
+                // 🚨 STRUCTURED FINDING LOG (nur positive!)
+                DetectionLogger.logFinding(
+                    text = input,
+                    score = riskScore,
+                    stage = GroomingStage.ASSESSMENT,
+                    method = "Assessment-Pattern",
+                    pattern = pattern
+                )
 
                 return AnalysisResult(
                     score = riskScore,
@@ -411,6 +469,7 @@ class KidGuardEngine(private val context: Context) : Closeable {
                 )
             }
         }
+        } // Ende if (!containsNegation)
 
         // 2. ML-Prediction
         val mlPrediction = mlDetector.predict(input)
@@ -453,6 +512,15 @@ class KidGuardEngine(private val context: Context) : Closeable {
             if (finalScore > 0.5f) {
                 explanation = "Kombinierte Erkennung: ${detectedPatterns.joinToString(", ")}"
                 detectionMethod = "Multi-Layer"
+
+                // 🚨 STRUCTURED FINDING LOG für Multi-Layer Detection
+                DetectionLogger.logFinding(
+                    text = input,
+                    score = finalScore,
+                    stage = GroomingStage.UNKNOWN,
+                    method = "Multi-Layer",
+                    pattern = detectedPatterns.firstOrNull()
+                )
             } else {
                 explanation = "Keine verdächtigen Muster erkannt"
                 detectionMethod = "Safe"

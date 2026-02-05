@@ -8,12 +8,12 @@ SafeSpark is a research prototype that detects online grooming patterns in real-
 
 ## Features
 
-- **On-Device Processing**: All text analysis runs locally on the device (TensorFlow Lite). No data leaves the phone.
+- **On-Device Processing**: All text analysis runs locally (TensorFlow Lite). No data leaves the device.
 - **GDPR Compliant**: Zero server communication, zero data collection.
 - **9-Layer Detection Pipeline**: Combines semantic similarity, transformer-based classification, n-gram analysis, and contextual features.
 - **6-Stage Grooming Taxonomy**: Based on established research (PAN-12, Osprey framework).
 - **Real-Time Alerts**: Notifications to parents/guardians when risk patterns are detected.
-- **~95% Accuracy**: Achieved through ensemble of specialized detectors.
+- **Multi-Layer Ensemble**: Combines specialized detectors for robust classification.
 
 ---
 
@@ -22,7 +22,7 @@ SafeSpark is a research prototype that detects online grooming patterns in real-
 ```
 Detection Pipeline (9 Layers)
 ├── Semantic Similarity     (25%)  – Embedding-based intent matching
-├── Osprey Transformer      (20%)  – BERT/RoBERTa 6-stage classifier
+├── Osprey Transformer      (20%)  – 6-stage classifier (Fani Lab)
 ├── ML Grooming Model       (20%)  – Custom TFLite CNN
 ├── Trigram Detector        (12%)  – N-gram pattern matching
 ├── Adult Context Detector  (10%)  – Role identification
@@ -47,10 +47,15 @@ Detection Pipeline (9 Layers)
 
 ## Osprey Integration
 
-This project builds on top of the **[Osprey framework](https://github.com/fani-lab/Osprey)** developed by Fani Lab at the University of Windsor. Osprey provides transformer-based grooming stage classification, which has been adapted for on-device inference via TFLite conversion.
+This project builds on top of the **[Osprey framework](https://github.com/fani-lab/Osprey)** developed by **Prof. Fani's Lab** at the University of Windsor. Osprey provides transformer-based grooming stage classification using its established 6-stage taxonomy.
 
-**Reference:**
-> Fani Lab. *Osprey: Online Sexual Predator Recognition.* GitHub Repository. https://github.com/fani-lab/Osprey
+**Adaptation for SafeSpark:**
+- Conversion pipeline for TFLite (on-device inference)
+- Integration into 9-layer ensemble architecture
+- Preservation of Osprey's stage classification semantics
+
+**Citation:**
+> Fani Lab. *Osprey: Online Sexual Predator Recognition.* University of Windsor. https://github.com/fani-lab/Osprey
 
 ---
 
@@ -58,12 +63,15 @@ This project builds on top of the **[Osprey framework](https://github.com/fani-l
 
 **Research Prototype / MVP**
 
-- [x] On-device detection pipeline functional
+Current focus: Validating on-device feasibility of transformer-based grooming detection.
+
+- [x] Multi-layer detection pipeline (functional)
+- [x] On-device inference (TFLite)
+- [x] GDPR-compliant architecture (no cloud)
 - [x] Real-time notification system
-- [x] GDPR-compliant architecture
-- [x] Tested on physical devices (Pixel 10)
-- [ ] Osprey TFLite model conversion (in progress)
-- [ ] Play Store release preparation
+- [x] Tested on physical devices
+- [ ] Osprey model integration (TFLite conversion pending)
+- [ ] Academic evaluation / benchmark comparison
 
 ---
 
@@ -109,24 +117,19 @@ adb install app/build/outputs/apk/debug/app-debug.apk
 ## Contact
 
 **Knut Ludtmann**  
+Research Prototype Developer  
 GitHub: [@kludtmann-source](https://github.com/kludtmann-source)
 
 ---
 
 ## License
 
-This project is currently under development. License terms to be determined pending discussions with research partners.
+License terms pending discussions with research partners.
 
 ---
 
 ## Acknowledgments
 
 - **Fani Lab, University of Windsor** – Osprey framework for grooming detection
-- **PAN-12 Dataset** – Training data for sexual predator identification
-- Research papers on online grooming detection informing the multi-layer approach
-
----
-
-## Internal Documentation
-
-For development notes (German), see the `docs/` folder or individual markdown files in the repository root.
+- **PAN-12 Dataset** – Training data foundation for sexual predator identification
+- Research literature on online grooming detection informing the multi-layer approach

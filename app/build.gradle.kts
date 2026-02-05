@@ -68,11 +68,15 @@ android {
 
     buildTypes {
         release {
+            isDebuggable = false
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            // Für lokales Testen: Debug-Key für Release verwenden
+            // ACHTUNG: Für Play Store muss ein eigener Keystore erstellt werden!
+            signingConfig = signingConfigs.getByName("debug")
         }
     }
     compileOptions {

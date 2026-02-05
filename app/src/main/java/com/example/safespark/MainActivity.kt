@@ -263,12 +263,12 @@ class MainActivity : AppCompatActivity() {
 
 /**
  * 📋 Thread-safe Log-Buffer für In-App-Anzeige
- * Singleton - speichert die letzten 200 Log-Zeilen
+ * Singleton - zeigt NUR Findings an (Error-Level)
  */
 object LogBuffer {
-    private const val MAX_LOGS = 200
+    private const val MAX_LOGS = 100
     private val logs = mutableListOf<LogEntry>()
-    private val dateFormat = java.text.SimpleDateFormat("HH:mm:ss.SSS", java.util.Locale.US)
+    private val dateFormat = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.US)
 
     data class LogEntry(
         val timestamp: String,
@@ -282,6 +282,9 @@ object LogBuffer {
 
     @Synchronized
     fun add(level: LogLevel, message: String) {
+        // NUR Error-Level (Findings) werden gespeichert!
+        if (level != LogLevel.ERROR) return
+
         val timestamp = dateFormat.format(java.util.Date())
         val entry = LogEntry(timestamp, level, message)
 
@@ -293,6 +296,7 @@ object LogBuffer {
         }
     }
 
+    // Diese Methoden tun jetzt NICHTS (außer e)
     fun d(message: String) = add(LogLevel.DEBUG, message)
     fun i(message: String) = add(LogLevel.INFO, message)
     fun w(message: String) = add(LogLevel.WARNING, message)
@@ -305,17 +309,14 @@ object LogBuffer {
     fun clear() = logs.clear()
 
     /**
-     * Formatiert Logs für TextView (mit Emoji-Icons)
+     * Formatiert Logs für TextView - nur Findings
      */
     fun getFormattedText(): String {
+        if (logs.isEmpty()) {
+            return "Keine Findings. Warte auf verdächtige Nachrichten..."
+        }
         return getAll().joinToString("\n") { entry ->
-            val icon = when (entry.level) {
-                LogLevel.DEBUG -> "🔹"
-                LogLevel.INFO -> "ℹ️"
-                LogLevel.WARNING -> "⚠️"
-                LogLevel.ERROR -> "🔴"
-            }
-            "${entry.timestamp} $icon ${entry.message}"
+            "${entry.timestamp} ${entry.message}"
         }
     }
 }
