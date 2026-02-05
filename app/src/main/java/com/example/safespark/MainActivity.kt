@@ -23,16 +23,16 @@ import androidx.core.app.Person
 
 class MainActivity : AppCompatActivity() {
 
+    private val TAG = "MainActivity"
     private lateinit var authManager: ParentAuthManager
-    private val logTag = "MainActivity"
 
     private val notificationPermissionHandler = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { granted: Boolean ->
         if (granted) {
-            Log.d(logTag, "✅ Notification Permission granted")
+            Log.d(TAG, "✅ Notification Permission granted")
         } else {
-            Log.w(logTag, "⚠️ Notification Permission denied")
+            Log.w(TAG, "⚠️ Notification Permission denied")
         }
     }
 
@@ -57,7 +57,7 @@ class MainActivity : AppCompatActivity() {
         setupDynamicShareShortcut()
         wireUpDemoButton()
 
-        Log.d(logTag, "✅ MainActivity initialized in Share Target mode")
+        Log.d(TAG, "✅ MainActivity initialized in Share Target mode")
     }
 
     private fun wireUpDemoButton() {
@@ -87,28 +87,28 @@ class MainActivity : AppCompatActivity() {
                 .build()
             
             ShortcutManagerCompat.pushDynamicShortcut(this, shareShortcut)
-            Log.d(logTag, "✅ Dynamic share shortcut created")
+            Log.d(TAG, "✅ Dynamic share shortcut created")
         } catch (ex: Exception) {
-            Log.w(logTag, "Failed to create share shortcut: ${ex.message}")
+            Log.w(TAG, "Failed to create share shortcut: ${ex.message}")
         }
     }
 
     private fun checkAuthAndConsent(): Boolean {
         when {
             !authManager.isPinSet() -> {
-                Log.d(logTag, "⚠️ No PIN configured -> ParentAuthActivity")
+                Log.d(TAG, "⚠️ No PIN configured -> ParentAuthActivity")
                 startActivity(Intent(this, ParentAuthActivity::class.java))
                 finish()
                 return false
             }
             !authManager.isOnboardingCompleted() || !authManager.isConsentGiven() -> {
-                Log.d(logTag, "⚠️ Onboarding/Consent missing")
+                Log.d(TAG, "⚠️ Onboarding/Consent missing")
                 startActivity(Intent(this, com.example.safespark.consent.OnboardingActivity::class.java))
                 finish()
                 return false
             }
             else -> {
-                Log.d(logTag, "✅ Auth & Consent validated")
+                Log.d(TAG, "✅ Auth & Consent validated")
                 return true
             }
         }
@@ -121,15 +121,15 @@ class MainActivity : AppCompatActivity() {
                     this,
                     Manifest.permission.POST_NOTIFICATIONS
                 ) == PackageManager.PERMISSION_GRANTED -> {
-                    Log.d(logTag, "✅ Notification Permission already granted")
+                    Log.d(TAG, "✅ Notification Permission already granted")
                 }
                 else -> {
-                    Log.d(logTag, "🔔 Requesting Notification Permission...")
+                    Log.d(TAG, "🔔 Requesting Notification Permission...")
                     notificationPermissionHandler.launch(Manifest.permission.POST_NOTIFICATIONS)
                 }
             }
         } else {
-            Log.d(logTag, "ℹ️ Android < 13 - No notification permission needed")
+            Log.d(TAG, "ℹ️ Android < 13 - No notification permission needed")
         }
     }
 }

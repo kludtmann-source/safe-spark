@@ -18,8 +18,8 @@ import kotlinx.coroutines.withContext
 
 class CheckItActivity : AppCompatActivity() {
 
-    private val logLabel = "CheckItActivity"
-    private lateinit var guardEngine: KidGuardEngine
+    private val TAG = "CheckItActivity"
+    private lateinit var safeSparkEngine: KidGuardEngine
     private val bgScope = CoroutineScope(Dispatchers.IO)
     
     private lateinit var mascotImage: ImageView
@@ -37,7 +37,7 @@ class CheckItActivity : AppCompatActivity() {
         super.onCreate(savedState)
         setContentView(R.layout.activity_check_it)
         
-        guardEngine = KidGuardEngine(this)
+        safeSparkEngine = KidGuardEngine(this)
         
         wireUpViews()
         
@@ -89,7 +89,7 @@ class CheckItActivity : AppCompatActivity() {
             return
         }
         
-        Log.d(logLabel, "Processing shared text: ${sharedContent.take(50)}...")
+        Log.d(TAG, "Processing shared text: ${sharedContent.take(50)}...")
         performAnalysis(sharedContent)
     }
     
@@ -102,12 +102,12 @@ class CheckItActivity : AppCompatActivity() {
         }
         
         val combined = textItems.joinToString("\n")
-        Log.d(logLabel, "Processing multiple texts, combined length: ${combined.length}")
+        Log.d(TAG, "Processing multiple texts, combined length: ${combined.length}")
         performAnalysis(combined)
     }
     
     private fun handleDirectLaunch() {
-        Log.d(logLabel, "Direct launch detected, showing demo")
+        Log.d(TAG, "Direct launch detected, showing demo")
         val demoText = "Bist du allein zu Hause?"
         performAnalysis(demoText)
     }
@@ -115,7 +115,7 @@ class CheckItActivity : AppCompatActivity() {
     private fun performAnalysis(messageText: String) {
         bgScope.launch {
             try {
-                val analysisOutput = guardEngine.analyzeTextWithExplanation(
+                val analysisOutput = safeSparkEngine.analyzeTextWithExplanation(
                     input = messageText,
                     appPackage = "shared_message"
                 )
@@ -124,7 +124,7 @@ class CheckItActivity : AppCompatActivity() {
                     renderAnalysisResult(analysisOutput)
                 }
             } catch (err: Exception) {
-                Log.e(logLabel, "Analysis error: ${err.message}", err)
+                Log.e(TAG, "Analysis error: ${err.message}", err)
                 withContext(Dispatchers.Main) {
                     displayAnalysisError(err.message ?: "Unknown error")
                 }
@@ -158,7 +158,7 @@ class CheckItActivity : AppCompatActivity() {
             methodInfo.visibility = View.GONE
         }
         
-        Log.d(logLabel, "Rendered result: score=${result.score}, risk=${result.isRisk}")
+        Log.d(TAG, "Rendered result: score=${result.score}, risk=${result.isRisk}")
     }
     
     private fun determineRiskLevel(scoreValue: Float): RiskCategory {
@@ -229,7 +229,7 @@ class CheckItActivity : AppCompatActivity() {
     
     override fun onDestroy() {
         super.onDestroy()
-        guardEngine.close()
+        safeSparkEngine.close()
     }
     
     private enum class RiskCategory {
