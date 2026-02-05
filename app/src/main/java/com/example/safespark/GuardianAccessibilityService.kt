@@ -9,6 +9,7 @@ import com.example.safespark.notification.NotificationHelper
 import com.example.safespark.database.KidGuardDatabase
 import com.example.safespark.database.RiskEventRepository
 import com.example.safespark.database.RiskEvent
+import com.example.safespark.ml.ConversationBuffer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -173,8 +174,14 @@ class GuardianAccessibilityService : AccessibilityService() {
 
             Log.d(TAG, "  🔍 ANALYSIERE TEXT: '$text'")
 
-            // ✅ Nutze NEUE Explainable AI Methode
-            val result = getEngine().analyzeTextWithExplanation(text, packageName)
+            // ✅ Nutze Konversations-basierte Analyse für Osprey-Integration
+            // chatIdentifier: Nutze Package als Pseudo-ID (Chat-Titel nicht immer verfügbar)
+            val result = getEngine().analyzeWithConversation(
+                input = text,
+                appPackage = packageName,
+                chatIdentifier = packageName,  // TODO: Chat-Titel aus UI extrahieren wenn möglich
+                isLocalUser = false  // Annahme: Empfangene Nachrichten sind vom Kontakt
+            )
             val scorePercent = (result.score * 100).toInt()
 
             // 🔥 NUR bei positivem Finding loggen (nicht jede Analyse!)
@@ -191,21 +198,50 @@ class GuardianAccessibilityService : AccessibilityService() {
             if (result.isRisk) {
                 // 📋 EIN konsolidierter Log-Eintrag pro Finding
                 // Stage-Label basierend auf stage ODER detectionMethod
+                val stageLower = result.stage.lowercase()
+                val methodLower = result.detectionMethod.lowercase()
+
                 val stageLabel = when {
-                    // Zuerst nach stage prüfen
-                    result.stage.contains("TRUST", ignoreCase = true) -> "Vertrauensaufbau"
-                    result.stage.contains("ISOLATION", ignoreCase = true) -> "Isolierung"
-                    result.stage.contains("DESENSITIZATION", ignoreCase = true) -> "Desensibilisierung"
-                    result.stage.contains("SEXUAL", ignoreCase = true) -> "Sexuelle Inhalte"
-                    result.stage.contains("MAINTENANCE", ignoreCase = true) -> "Geheimhaltung"
-                    result.stage.contains("ASSESSMENT", ignoreCase = true) -> "Situationscheck"
+                    // Trust Building (verschiedene Varianten)
+                    stageLower.contains("trust") -> "Vertrauensaufbau"
+                    stageLower.contains("compliment") -> "Vertrauensaufbau"
+                    methodLower.contains("trust") -> "Vertrauensaufbau"
+
+                    // Isolation
+                    stageLower.contains("isolation") -> "Isolierung"
+                    stageLower.contains("supervision") -> "Isolierung"
+                    methodLower.contains("isolation") -> "Isolierung"
+
+                    // Desensitization
+                    stageLower.contains("desensitization") -> "Desensibilisierung"
+                    stageLower.contains("desensit") -> "Desensibilisierung"
+
+                    // Sexual Content
+                    stageLower.contains("sexual") -> "Sexuelle Inhalte"
+                    stageLower.contains("photo") -> "Sexuelle Inhalte"
+
+                    // Maintenance/Secrecy
+                    stageLower.contains("maintenance") -> "Geheimhaltung"
+                    stageLower.contains("secrecy") -> "Geheimhaltung"
+                    stageLower.contains("secret") -> "Geheimhaltung"
+
+                    // Assessment
+                    stageLower.contains("assessment") -> "Situationscheck"
+                    methodLower.contains("assessment") -> "Situationscheck"
+
+                    // Needs/Gift Giving
+                    stageLower.contains("needs") -> "Geschenke/Hilfe"
+                    stageLower.contains("gift") -> "Geschenke/Hilfe"
+
                     // Fallback: nach detectionMethod prüfen
-                    result.detectionMethod.contains("Assessment", ignoreCase = true) -> "Situationscheck"
-                    result.detectionMethod.contains("Semantic", ignoreCase = true) -> "Semantisch erkannt"
-                    result.detectionMethod.contains("Osprey", ignoreCase = true) -> "Osprey-Erkennung"
-                    result.detectionMethod.contains("ML", ignoreCase = true) -> "ML-Erkennung"
-                    result.detectionMethod.contains("Trigram", ignoreCase = true) -> "Muster-Erkennung"
-                    // Default
+                    methodLower.contains("semantic") -> "Semantisch erkannt"
+                    methodLower.contains("osprey") -> "Osprey-Erkennung"
+                    methodLower.contains("machine") || methodLower.contains("ml") -> "ML-Erkennung"
+                    methodLower.contains("trigram") -> "Muster-Erkennung"
+                    methodLower.contains("multi") -> "Multi-Layer"
+
+                    // Default mit Stage-Info falls vorhanden
+                    result.stage.isNotEmpty() && result.stage != "UNKNOWN" -> result.stage
                     else -> "Erkannt"
                 }
 
@@ -313,6 +349,17 @@ class GuardianAccessibilityService : AccessibilityService() {
 
     override fun onInterrupt() {
         Log.d(TAG, "Service interrupted")
+        // DSGVO: Buffer leeren bei Interrupt
+        ConversationBuffer.clearAll()
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        Log.d(TAG, "Service destroyed")
+        // DSGVO: Buffer leeren bei Service-Stop
+        ConversationBuffer.clearAll()
+        safeSparkEngine?.close()
+        safeSparkEngine = null
     }
 
     companion object {
