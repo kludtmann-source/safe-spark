@@ -145,10 +145,19 @@ class GuardianAccessibilityService : AccessibilityService() {
                 Log.d(TAG, "  → TYPE_WINDOW_CONTENT_CHANGED erkannt")
                 event.contentDescription?.let { texts.add(it.toString()) }
                 texts.addAll(event.text.map { it.toString() })
+
+                // 🔥 NEUE LOGIK: Extrahiere auch aus Source-View (für WhatsApp/Telegram)
+                event.source?.let { node ->
+                    extractTextFromNode(node, texts)
+                }
             }
             AccessibilityEvent.TYPE_VIEW_FOCUSED -> {
                 Log.d(TAG, "  → TYPE_VIEW_FOCUSED erkannt")
                 event.contentDescription?.let { texts.add(it.toString()) }
+                event.text?.let { texts.addAll(it.map { t -> t.toString() }) }
+            }
+            AccessibilityEvent.TYPE_NOTIFICATION_STATE_CHANGED -> {
+                Log.d(TAG, "  → TYPE_NOTIFICATION_STATE_CHANGED erkannt")
                 event.text?.let { texts.addAll(it.map { t -> t.toString() }) }
             }
             else -> {
@@ -351,6 +360,30 @@ class GuardianAccessibilityService : AccessibilityService() {
         Log.d(TAG, "Service interrupted")
         // DSGVO: Buffer leeren bei Interrupt
         ConversationBuffer.clearAll()
+    }
+
+    /**
+     * 🔥 Rekursive Text-Extraktion aus AccessibilityNodeInfo
+     * Durchsucht die View-Hierarchie nach Text (z.B. für WhatsApp/Telegram)
+     */
+    private fun extractTextFromNode(node: android.view.accessibility.AccessibilityNodeInfo?, texts: MutableList<String>, depth: Int = 0) {
+        if (node == null || depth > 5) return  // Max. Tiefe 5 gegen Endlosschleifen
+
+        try {
+            // Text aus diesem Node extrahieren
+            node.text?.toString()?.takeIf { it.isNotBlank() }?.let { texts.add(it) }
+            node.contentDescription?.toString()?.takeIf { it.isNotBlank() }?.let { texts.add(it) }
+
+            // Rekursiv durch Kinder gehen
+            for (i in 0 until node.childCount) {
+                node.getChild(i)?.let { child ->
+                    extractTextFromNode(child, texts, depth + 1)
+                    child.recycle()
+                }
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Fehler bei Text-Extraktion aus Node: ${e.message}")
+        }
     }
 
     override fun onDestroy() {
