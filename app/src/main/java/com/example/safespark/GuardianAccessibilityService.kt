@@ -23,7 +23,6 @@ class GuardianAccessibilityService : AccessibilityService() {
     // ✅ Database Repository
     private var repository: RiskEventRepository? = null
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
-    private val TAG = "GuardianAccessibility"
     private val dateFormat = SimpleDateFormat("HH:mm:ss.SSS", Locale.US)
 
     private val analyzedTextCache = mutableSetOf<String>()
@@ -33,6 +32,17 @@ class GuardianAccessibilityService : AccessibilityService() {
     private val minEventInterval = 0L
 
     private var debugMode = true
+
+    companion object {
+        private const val TAG = "GuardianAccessibility"
+        
+        // Chat-Titel Extraktion: Konstanten
+        private const val MAX_NODE_SEARCH_DEPTH = 10  // Begrenzt rekursive Suche aus Performance-/Sicherheitsgründen
+        
+        // Precompiled Regexes für bessere Performance
+        private val PARENTHETICAL_REGEX = Regex("\\s*\\(.*?\\)\\s*")  // Entfernt (online), (typing)
+        private val WHITESPACE_REGEX = Regex("\\s+")  // Normalisiert Whitespace
+    }
 
     override fun onCreate() {
         super.onCreate()
@@ -374,7 +384,9 @@ class GuardianAccessibilityService : AccessibilityService() {
      * 2. View-Hierarchie (Toolbar/ActionBar)
      * 3. Fallback: packageName
      * 
-     * DSGVO: Der Titel wird später gehasht in generateContactId()
+     * DSGVO: Der Titel wird im Klartext zurückgegeben, aber vom Aufrufer
+     * sofort an generateContactId() übergeben, wo er gehasht wird.
+     * Der Klartext-Titel wird nie persistent gespeichert.
      * 
      * @param event AccessibilityEvent
      * @param packageName Fallback wenn kein Titel gefunden
@@ -446,7 +458,7 @@ class GuardianAccessibilityService : AccessibilityService() {
             }
             
             // Rekursiv durch Kinder (begrenzte Tiefe)
-            for (i in 0 until minOf(node.childCount, 10)) {
+            for (i in 0 until minOf(node.childCount, MAX_NODE_SEARCH_DEPTH)) {
                 node.getChild(i)?.let { child ->
                     val result = findChatTitleInNodeTree(child)
                     child.recycle()
@@ -489,8 +501,8 @@ class GuardianAccessibilityService : AccessibilityService() {
      */
     private fun sanitizeChatTitle(title: String): String {
         return title.trim()
-            .replace(Regex("\\s*\\(.*?\\)\\s*"), "") // Entferne (online), (typing), etc.
-            .replace(Regex("\\s+"), " ") // Normalisiere Whitespace
+            .replace(PARENTHETICAL_REGEX, "") // Entferne (online), (typing), etc.
+            .replace(WHITESPACE_REGEX, " ") // Normalisiere Whitespace
             .trim()
     }
 
@@ -525,9 +537,5 @@ class GuardianAccessibilityService : AccessibilityService() {
         ConversationBuffer.clearAll()
         safeSparkEngine?.close()
         safeSparkEngine = null
-    }
-
-    companion object {
-        private const val TAG = "GuardianAccessibility"
     }
 }

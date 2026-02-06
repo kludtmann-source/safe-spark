@@ -8,7 +8,7 @@ import org.junit.Test
 /**
  * Unit-Tests für ConversationBuffer
  * 
- * Testet das per-Contact Buffer System:
+ * Testet das per-contact Buffer System:
  * - Separate Buffers pro Chat-Titel
  * - Contact-ID Generierung
  * - Buffer Isolation zwischen verschiedenen Kontakten
@@ -17,7 +17,7 @@ class ConversationBufferTest {
 
     @Before
     fun setUp() {
-        // Clean slate für jeden Test
+        // Clean slate for jeden Test
         ConversationBuffer.clearAll()
     }
 
