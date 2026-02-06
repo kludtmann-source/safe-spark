@@ -8,6 +8,7 @@ import android.widget.Button
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
+import androidx.annotation.VisibleForTesting
 import androidx.appcompat.app.AppCompatActivity
 import androidx.cardview.widget.CardView
 import androidx.core.content.ContextCompat
@@ -162,11 +163,7 @@ class CheckItActivity : AppCompatActivity() {
     }
     
     private fun determineRiskLevel(scoreValue: Float): RiskCategory {
-        return when {
-            scoreValue < 0.3f -> RiskCategory.SAFE
-            scoreValue < 0.6f -> RiskCategory.CAUTION
-            else -> RiskCategory.DANGER
-        }
+        return RiskLevelUtils.determineRiskLevel(scoreValue)
     }
     
     private fun applySafeTheme() {
@@ -199,16 +196,7 @@ class CheckItActivity : AppCompatActivity() {
     }
     
     private fun translateStage(stageCode: String): String {
-        return when (stageCode.uppercase()) {
-            "TRUST", "STAGE_TRUST" -> "Vertrauensaufbau"
-            "ISOLATION", "STAGE_ISOLATION" -> "Isolierung"
-            "ASSESSMENT", "STAGE_ASSESSMENT" -> "Situationscheck"
-            "DESENSITIZATION", "STAGE_DESENSITIZATION" -> "Desensibilisierung"
-            "SEXUAL", "STAGE_SEXUAL" -> "Sexuelle Inhalte"
-            "MAINTENANCE", "STAGE_MAINTENANCE", "SECRECY" -> "Geheimhaltung"
-            "NEEDS", "STAGE_NEEDS", "GIFT" -> "Geschenke/Hilfe"
-            else -> stageCode
-        }
+        return StageTranslator.translateStage(stageCode)
     }
     
     private fun displayEmptyMessageError() {
@@ -231,8 +219,47 @@ class CheckItActivity : AppCompatActivity() {
         super.onDestroy()
         safeSparkEngine.close()
     }
-    
-    private enum class RiskCategory {
-        SAFE, CAUTION, DANGER
+}
+
+/**
+ * Risk category classification for grooming detection.
+ */
+@VisibleForTesting
+internal enum class RiskCategory {
+    SAFE, CAUTION, DANGER
+}
+
+/**
+ * Utility object to determine risk level based on score.
+ * Extracted for testing purposes.
+ */
+@VisibleForTesting
+internal object RiskLevelUtils {
+    fun determineRiskLevel(scoreValue: Float): RiskCategory {
+        return when {
+            scoreValue < 0.3f -> RiskCategory.SAFE
+            scoreValue < 0.6f -> RiskCategory.CAUTION
+            else -> RiskCategory.DANGER
+        }
+    }
+}
+
+/**
+ * Utility object to translate stage codes to German.
+ * Extracted for testing purposes.
+ */
+@VisibleForTesting
+internal object StageTranslator {
+    fun translateStage(stageCode: String): String {
+        return when (stageCode.uppercase()) {
+            "TRUST", "STAGE_TRUST" -> "Vertrauensaufbau"
+            "ISOLATION", "STAGE_ISOLATION" -> "Isolierung"
+            "ASSESSMENT", "STAGE_ASSESSMENT" -> "Situationscheck"
+            "DESENSITIZATION", "STAGE_DESENSITIZATION" -> "Desensibilisierung"
+            "SEXUAL", "STAGE_SEXUAL" -> "Sexuelle Inhalte"
+            "MAINTENANCE", "STAGE_MAINTENANCE", "SECRECY" -> "Geheimhaltung"
+            "NEEDS", "STAGE_NEEDS", "GIFT" -> "Geschenke/Hilfe"
+            else -> stageCode
+        }
     }
 }
