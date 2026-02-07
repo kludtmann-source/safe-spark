@@ -196,6 +196,12 @@ class GuardianAccessibilityService : AccessibilityService() {
                 Log.d(TAG, "  ⏭️ Leerer Text übersprungen")
                 continue
             }
+            
+            // 🔥 NEUE LOGIK: UI-Text-Filter - ignoriere Android System UI Strings
+            if (isSystemUIText(text)) {
+                Log.d(TAG, "  ⏭️ System-UI-Text übersprungen: '${text.take(30)}...'")
+                continue
+            }
 
             // 🔥 Cache aktiviert - verhindert doppelte Analysen
             if (analyzedTextCache.contains(text)) {
@@ -536,6 +542,66 @@ class GuardianAccessibilityService : AccessibilityService() {
         } catch (e: Exception) {
             Log.w(TAG, "Fehler bei Text-Extraktion aus Node: ${e.message}")
         }
+    }
+    
+    /**
+     * 🔥 UI-Text-Filter
+     * Prüft ob ein Text zu Android System UI gehört und nicht analysiert werden sollte
+     * 
+     * Filtert typische UI-Strings wie:
+     * - "Weitere Optionen", "More options"
+     * - "Einstellungen", "Settings"
+     * - Menü-Texte, Buttons, Navigationsleisten
+     * - Accessibility-Labels
+     * 
+     * @param text Der zu prüfende Text
+     * @return true wenn System-UI-Text, false wenn Chat-Nachricht
+     */
+    private fun isSystemUIText(text: String): Boolean {
+        val lowerText = text.lowercase().trim()
+        
+        // Zu kurz für echte Nachrichten (aber zu lang für einzelne Wörter wie "ok")
+        if (lowerText.length < 3) return true
+        
+        // System-UI-Patterns (Deutsch & Englisch)
+        val systemUIPatterns = listOf(
+            // Menü & Optionen
+            "weitere optionen", "more options", "optionen für",
+            "einstellungen", "settings",
+            "menü", "menu",
+            // Navigation
+            "navigationsleiste", "navigation",
+            "zurück", "back",
+            "schließen", "close", "öffnen", "open",
+            // UI-Elemente
+            "schaltfläche", "button",
+            "benachrichtigung", "notification",
+            "suchen", "search",
+            "teilen", "share",
+            "kopieren", "copy",
+            "einfügen", "paste",
+            // Status-Texte
+            "wird geladen", "loading",
+            "verbinden", "connecting",
+            "online", "offline", "typing",
+            // Accessibility
+            "bild", "image", "icon"
+        )
+        
+        // Prüfe exakte Matches und Teilstrings
+        for (pattern in systemUIPatterns) {
+            if (lowerText == pattern || lowerText.contains(pattern)) {
+                return true
+            }
+        }
+        
+        // Pattern: "Optionen für 'XYZ'" - typischer Accessibility-String
+        if (lowerText.matches(Regex(".*optionen für.*")) || 
+            lowerText.matches(Regex(".*options for.*"))) {
+            return true
+        }
+        
+        return false
     }
 
     override fun onDestroy() {

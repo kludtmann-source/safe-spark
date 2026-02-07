@@ -135,11 +135,17 @@ class MLGroomingDetector(private val context: Context) {
      * Regelbasierte Detection (DEMO MODE)
      * Basierend auf Nature 2024 & Springer 2024 Papers
      * Accuracy: ~70-80%
+     * 
+     * FIX: Verwendet word-boundary matching statt substring contains
+     * FIX: Reduzierte Scoring-Aggressivität (3+ matches für meaningful score)
      */
     private fun predictRuleBased(message: String): GroomingPrediction {
         var risk = 0f
         var detectedStage = "STAGE_SAFE"
         val textLower = message.lowercase()
+        
+        // Tokenize text into words for word-boundary matching
+        val words = textLower.split(Regex("\\s+"))
 
         // HIGH-RISK KEYWORDS (aus Nature Paper 2024)
         val assessmentKeywords = listOf(
@@ -158,55 +164,71 @@ class MLGroomingDetector(private val context: Context) {
             "special", "besonders", "mature", "reif", "understand",
             "verstehen", "trust me", "vertrau mir", "friend", "freund"
         )
+        
+        // Helper function for word-boundary matching
+        fun containsWord(keyword: String): Boolean {
+            // Handle multi-word phrases
+            if (keyword.contains(" ")) {
+                return textLower.contains(keyword)
+            }
+            // Single word - check word boundaries
+            return words.any { it == keyword }
+        }
 
         // ASSESSMENT Stage (höchstes Risiko)
         var assessmentCount = 0
         assessmentKeywords.forEach {
-            if (textLower.contains(it)) {
-                risk += 0.18f
+            if (containsWord(it)) {
                 assessmentCount++
             }
         }
-        if (assessmentCount > 0) detectedStage = "STAGE_ASSESSMENT"
-
+        
         // ISOLATION Stage
         var isolationCount = 0
         isolationKeywords.forEach {
-            if (textLower.contains(it)) {
-                risk += 0.15f
+            if (containsWord(it)) {
                 isolationCount++
             }
         }
-        if (isolationCount > 0 && detectedStage == "STAGE_SAFE") {
-            detectedStage = "STAGE_ISOLATION"
-        }
-
+        
         // NEEDS Stage
         var needsCount = 0
         needsKeywords.forEach {
-            if (textLower.contains(it)) {
-                risk += 0.13f
+            if (containsWord(it)) {
                 needsCount++
             }
         }
-        if (needsCount > 0 && detectedStage == "STAGE_SAFE") {
-            detectedStage = "STAGE_NEEDS"
-        }
-
+        
         // TRUST Stage
         var trustCount = 0
         trustKeywords.forEach {
-            if (textLower.contains(it)) {
-                risk += 0.10f
+            if (containsWord(it)) {
                 trustCount++
             }
         }
-        if (trustCount > 0 && detectedStage == "STAGE_SAFE") {
-            detectedStage = "STAGE_TRUST"
+        
+        // Calculate risk based on total matches across all categories
+        val totalMatches = assessmentCount + isolationCount + needsCount + trustCount
+        
+        // Reduced scoring aggressiveness:
+        // 1 match = 0.0f (not enough context)
+        // 2 matches = 0.15f (low risk)
+        // 3+ matches = 0.50f (medium risk)
+        risk = when {
+            totalMatches == 0 -> 0.0f
+            totalMatches == 1 -> 0.0f  // Single keyword not enough
+            totalMatches == 2 -> 0.15f  // Two keywords = low risk
+            else -> 0.50f  // Three or more = medium risk
         }
-
-        // Begrenze Risk auf 0-1
-        risk = risk.coerceIn(0f, 1f)
+        
+        // Determine stage based on highest count
+        detectedStage = when {
+            assessmentCount > 0 -> "STAGE_ASSESSMENT"
+            isolationCount > 0 -> "STAGE_ISOLATION"
+            needsCount > 0 -> "STAGE_NEEDS"
+            trustCount > 0 -> "STAGE_TRUST"
+            else -> "STAGE_SAFE"
+        }
 
         val isDangerous = risk > DetectionConfig.ML_THRESHOLD
 
