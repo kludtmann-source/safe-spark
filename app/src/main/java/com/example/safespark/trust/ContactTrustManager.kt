@@ -42,12 +42,6 @@ object ContactTrustManager {
     private val trustCache = ConcurrentHashMap<String, TrustLevel>()
     
     /**
-     * Fix 1: In-memory trust cache (thread-safe)
-     * Prevents ANR by avoiding runBlocking on main thread
-     */
-    private val trustCache = ConcurrentHashMap<String, TrustLevel>()
-    
-    /**
      * Fix 1: Synchronous cache-only trust level lookup
      * Returns UNKNOWN on cache miss (safest default)
      * 
