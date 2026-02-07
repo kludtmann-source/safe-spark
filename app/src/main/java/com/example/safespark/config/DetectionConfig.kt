@@ -59,9 +59,10 @@ object DetectionConfig {
     /**
      * Minimum words required for pattern matching
      *
-     * Einzelwörter → kein Pattern-Match möglich
+     * Einzelwörter und sehr kurze Sätze → kein Pattern-Match möglich
+     * Erhöht von 3 auf 4 um False Positives zu reduzieren
      */
-    const val MIN_WORDS_FOR_PATTERN = 3
+    const val MIN_WORDS_FOR_PATTERN = 4
 
     // ═══════════════════════════════════════════════════════════════
     // CONFIRMATION REQUIREMENTS

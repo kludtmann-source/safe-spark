@@ -571,9 +571,16 @@ class KidGuardEngine(private val context: Context) : Closeable {
             context.assets.open("vocabulary.txt").use { inputStream ->
                 BufferedReader(InputStreamReader(inputStream, Charsets.UTF_8)).use { reader ->
                     // Skip häufige Wörter die keine Risk sind
+                    // Erweitert um deutsche Stopwörter und ambigue Wörter
                     val skipWords = setOf(
+                        // Englische Stopwörter
                         "<unk>", "the", "to", "and", "a", "of", "is", "in",
-                        "you", "it", "that", "child", "safety", "protect"
+                        "you", "it", "that", "child", "safety", "protect",
+                        // Deutsche Stopwörter
+                        "ich", "der", "die", "das", "und", "oder", "aber",
+                        "für", "mit", "von", "zu", "auf", "an", "bei",
+                        // Ambigue Wörter die in vocabulary.txt stehen
+                        "false", "religious", "innocent", "content", "adult", "exposure"
                     )
 
                     reader.forEachLine { line ->
