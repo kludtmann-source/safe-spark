@@ -387,8 +387,9 @@ class KidGuardEngine(private val context: Context) : Closeable {
         // Buffer leeren (DSGVO)
         ConversationBuffer.clearAll()
 
-        semanticDetector?.close()
+        // Close in LIFO order (last initialized, first closed)
         ospreyDetector?.close()
+        semanticDetector?.close()
         Log.d(TAG, "🔒 SafeSparkEngine geschlossen")
     }
 }
