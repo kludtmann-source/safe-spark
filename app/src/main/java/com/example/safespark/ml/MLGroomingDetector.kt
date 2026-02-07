@@ -149,8 +149,16 @@ class MLGroomingDetector(private val context: Context) {
 
         // HIGH-RISK KEYWORDS (aus Nature Paper 2024)
         val assessmentKeywords = listOf(
-            "alone", "allein", "parents", "eltern", "home alone",
-            "zuhause allein", "where are", "wo bist", "nobody", "niemand"
+            // Englisch
+            "alone", "parents", "home alone", "where are", "nobody",
+            // Deutsch - Standardsprache
+            "allein", "alleine",  // ← BEIDE Varianten!
+            "eltern", "niemand",
+            "zuhause allein", "zuhause alleine",
+            "wo bist",
+            // Deutsch - Umgangssprache/Jugendsprache
+            "biste allein", "biste alleine",
+            "bist allein", "bist alleine"
         )
         val isolationKeywords = listOf(
             "secret", "geheim", "don't tell", "sag nicht", "private",
@@ -197,18 +205,17 @@ class MLGroomingDetector(private val context: Context) {
             }
         }
         
-        // Calculate risk based on total matches across all categories
+        // Calculate total matches
         val totalMatches = assessmentCount + isolationCount + needsCount + trustCount
         
-        // Reduced scoring aggressiveness:
-        // 1 match = 0.0f (not enough context)
-        // 2 matches = 0.15f (low risk)
-        // 3+ matches = 0.50f (medium risk)
+        // Calculate risk - Assessment keywords are HIGH RISK even with 1 match!
         risk = when {
-            totalMatches == 0 -> 0.0f
-            totalMatches == 1 -> 0.0f  // Single keyword not enough
-            totalMatches == 2 -> 0.15f  // Two keywords = low risk
-            else -> 0.50f  // Three or more = medium risk
+            assessmentCount > 0 -> 0.85f  // ← Assessment = IMMER gefährlich!
+            isolationCount > 0 -> 0.75f   // ← Isolation = sehr gefährlich
+            totalMatches >= 3 -> 0.50f
+            totalMatches == 2 -> 0.35f
+            totalMatches == 1 -> 0.20f    // ← Nicht mehr 0.0!
+            else -> 0.0f
         }
         
         // Determine stage based on highest count
@@ -261,8 +268,12 @@ class MLGroomingDetector(private val context: Context) {
         if (keyword.contains(" ")) {
             return textLower.contains(keyword)
         }
-        // Single word - check word boundaries
-        return words.any { it == keyword }
+        // Single word - check word boundaries with fuzzy matching for German variants
+        return words.any { word ->
+            word == keyword || 
+            word.startsWith(keyword) ||  // "allein" matcht "alleine"
+            keyword.startsWith(word)     // Edge case
+        }
     }
 
     /**
