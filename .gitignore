@@ -54,6 +54,9 @@ training/data/
 *.keras
 *.h5
 
+# ONNX Models (too large for GitHub, v2.0 feature)
+*.onnx
+
 # PDF Research Papers (not needed in repo)
 *.pdf
 
