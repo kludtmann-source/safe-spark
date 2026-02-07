@@ -7,6 +7,7 @@ import org.json.JSONObject
 import java.io.FileInputStream
 import java.nio.MappedByteBuffer
 import java.nio.channels.FileChannel
+import com.example.safespark.config.DetectionConfig
 
 /**
  * ML-basierter Grooming Detector
@@ -262,7 +263,7 @@ class MLGroomingDetector(private val context: Context) {
         // Begrenze Risk auf 0-1
         risk = risk.coerceIn(0f, 1f)
 
-        val isDangerous = risk > 0.7f || detectedStage != "STAGE_SAFE"
+        val isDangerous = risk > DetectionConfig.ML_THRESHOLD
 
         // Probability Map für alle Stages
         val probabilityMap = mapOf(
