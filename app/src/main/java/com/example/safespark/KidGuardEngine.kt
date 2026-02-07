@@ -481,6 +481,8 @@ class KidGuardEngine(private val context: Context) : Closeable {
         }
 
         // Fix 3: Gewichte pro Detection-Layer (rebalanced with OspreyConversation)
+        // NOTE: Missing layers automatically receive 0 weight and don't affect the calculation
+        // The weighted sum is normalized by the total weight of present layers only
         val weights = mapOf(
             "Semantic" to 0.22f,              // Semantic: 22% (was 25%)
             "OspreyConversation" to 0.18f,    // Osprey Conversation: 18% (NEW!)
@@ -701,6 +703,8 @@ class KidGuardEngine(private val context: Context) : Closeable {
         var baseResult = analyzeTextWithExplanation(input, appPackage, conversationScores)
         
         // Fix 5: Apply safe-context boost if conversation history is suspicious
+        // Only boost if conversation is long enough to establish pattern (>= MIN_CONVERSATION_SIZE)
+        // AND context is suspicious (safeContextScore < SUSPICIOUS_CONTEXT_THRESHOLD)
         val safeContextScore = ConversationBuffer.getSafeContextScore(contactId)
         if (safeContextScore < SUSPICIOUS_CONTEXT_THRESHOLD && conversation.size >= MIN_CONVERSATION_SIZE) {
             val boostedScore = (baseResult.score + CONTEXT_BOOST_AMOUNT).coerceIn(0f, 1f)
@@ -709,6 +713,7 @@ class KidGuardEngine(private val context: Context) : Closeable {
         }
 
         // Fix 1: Use sync cache lookup instead of runBlocking
+        // NOTE: May return UNKNOWN on first access (safest default), async refresh populates cache
         val trustLevel = ContactTrustManager.getTrustLevelSync(contactId)
         
         // Fix 1: Fire-and-forget async refresh using managed scope

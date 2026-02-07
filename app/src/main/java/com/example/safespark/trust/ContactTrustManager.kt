@@ -50,6 +50,11 @@ object ContactTrustManager {
      * Fix 1: Synchronous cache-only trust level lookup
      * Returns UNKNOWN on cache miss (safest default)
      * 
+     * NOTE: This may return stale or UNKNOWN on first access before refreshTrustCache completes.
+     * This is intentional - UNKNOWN is the safest default for grooming detection, and the cache
+     * will be populated asynchronously. The first message may be scored without trust adjustment,
+     * which errs on the side of caution.
+     * 
      * @param contactId Contact-ID
      * @return Trust-Level from cache or UNKNOWN
      */
@@ -148,6 +153,19 @@ object ContactTrustManager {
     }
     
     /**
+     * Fix 4: Helper to check if contact should be degraded due to risk spike
+     */
+    private fun shouldDegradeFromRiskSpike(
+        messageRiskScore: Float,
+        trustLevel: TrustLevel,
+        manuallySet: Boolean
+    ): Boolean {
+        return messageRiskScore > RISK_SPIKE_THRESHOLD &&
+            (trustLevel == TrustLevel.TRUSTED || trustLevel == TrustLevel.KNOWN) &&
+            !manuallySet
+    }
+    
+    /**
      * Aktualisiert die Statistiken für einen Kontakt
      * 
      * Fix 4: Risk-spike degradation
@@ -169,9 +187,11 @@ object ContactTrustManager {
                 val contact = if (existing != null) {
                     // Fix 4: Risk-spike detection
                     val currentTrustLevel = TrustLevel.valueOf(existing.trustLevel)
-                    val shouldDegradeFromSpike = messageRiskScore > RISK_SPIKE_THRESHOLD &&
-                        (currentTrustLevel == TrustLevel.TRUSTED || currentTrustLevel == TrustLevel.KNOWN) &&
-                        !existing.manuallySet
+                    val shouldDegradeFromSpike = shouldDegradeFromRiskSpike(
+                        messageRiskScore,
+                        currentTrustLevel,
+                        existing.manuallySet
+                    )
                     
                     if (shouldDegradeFromSpike) {
                         Log.w(TAG, "🚨 TRUST DEGRADATION: $contactId demoted from $currentTrustLevel → UNKNOWN (risk spike: ${(messageRiskScore*100).toInt()}%)")
@@ -188,7 +208,7 @@ object ContactTrustManager {
                     val newAvgRiskScore = ((existing.averageRiskScore * existing.totalMessages) + messageRiskScore) / newTotalMessages
                     
                     // Wenn manuell gesetzt, nur Stats updaten, nicht Trust-Level
-                    // Fix 4: Apply degradation immediately
+                    // Fix 4: Apply degradation immediately if spike detected
                     val newTrustLevel = if (existing.manuallySet) {
                         existing.trustLevel
                     } else if (shouldDegradeFromSpike) {
