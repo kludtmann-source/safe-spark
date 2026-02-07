@@ -46,7 +46,6 @@ class TrigramDetector {
         "schick mir bild" to 0.68f,
         "sende mir foto" to 0.70f,
         "zeig mir dich" to 0.66f,
-        "wie siehst du" to 0.45f,
         "bist du hübsch" to 0.50f,
 
         // NEEDS Stage (0.49-0.52)
@@ -54,7 +53,6 @@ class TrigramDetector {
         "kaufe dir was" to 0.49f,
         "bekommst von mir" to 0.48f,
         "schenke ich dir" to 0.51f,
-        "kann dir helfen" to 0.42f,
 
         // TRUST Stage (0.45-0.48)
         "verstehe dich so" to 0.47f,
@@ -86,8 +84,6 @@ class TrigramDetector {
         "send me picture" to 0.68f,
         "send me photo" to 0.70f,
         "show me yourself" to 0.66f,
-        "what do you" to 0.40f,
-        "how do you" to 0.38f,
 
         // NEEDS Stage
         "give you money" to 0.52f,
@@ -95,9 +91,7 @@ class TrigramDetector {
         "get you gift" to 0.51f,
 
         // TRUST Stage
-        "understand you so" to 0.47f,
-        "you are special" to 0.48f,
-        "you are different" to 0.45f
+        "understand you so" to 0.47f
     )
 
     data class TrigramResult(

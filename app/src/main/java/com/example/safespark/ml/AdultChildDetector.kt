@@ -59,9 +59,9 @@ class AdultChildDetector {
 
     // Komplexe/formelle Sprache (typisch für Erwachsene)
     private val adultComplexLanguage = listOf(
-        "because", "therefore", "however", "although", "nevertheless",
+        "therefore", "nevertheless",
         "consequently", "furthermore", "moreover", "regarding",
-        "weil", "deshalb", "obwohl", "allerdings", "dennoch",
+        "deshalb",
         "außerdem", "bezüglich", "hinsichtlich"
     )
 
