@@ -183,6 +183,14 @@ class GuardianAccessibilityService : AccessibilityService() {
         val chatTitle = extractChatTitle(event, packageName)
         Log.d(TAG, "  💬 Chat-Identifier: '$chatTitle'")
 
+        // Heuristik: TYPE_VIEW_TEXT_CHANGED = Kind tippt selbst → isLocalUser = true
+        //            TYPE_WINDOW_CONTENT_CHANGED = empfangene Nachricht → isLocalUser = false
+        //            Andere Events → false (konservativer Fallback)
+        val isLocalUser = when (event.eventType) {
+            AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED -> true
+            else -> false
+        }
+
         for (text in texts) {
             if (text.isEmpty()) {
                 Log.d(TAG, "  ⏭️ Leerer Text übersprungen")
@@ -203,7 +211,7 @@ class GuardianAccessibilityService : AccessibilityService() {
                 input = text,
                 appPackage = packageName,
                 chatIdentifier = chatTitle,  // ✅ Chat-Titel aus UI extrahiert (Fallback: packageName)
-                isLocalUser = false  // Annahme: Empfangene Nachrichten sind vom Kontakt
+                isLocalUser = isLocalUser  // ← Heuristik statt hardcoded false
             )
             val scorePercent = (result.score * 100).toInt()
 

@@ -97,7 +97,8 @@ object ConversationBuffer {
                 "contact_msg_ratio" to 0f,
                 "avg_msg_length" to 0f,
                 "conversation_duration_min" to 0f,
-                "messages_per_minute" to 0f
+                "messages_per_minute" to 0f,
+                "safe_message_ratio" to 0f
             )
         }
 
@@ -115,12 +116,15 @@ object ConversationBuffer {
             messages.size.toFloat() / durationMin
         } else messages.size.toFloat()
 
+        val safeRatio = getSafeContextScore(contactId)
+
         return mapOf(
             "message_count" to messages.size.toFloat(),
             "contact_msg_ratio" to contactMsgRatio,
             "avg_msg_length" to avgContactMsgLength,
             "conversation_duration_min" to durationMin,
-            "messages_per_minute" to msgsPerMinute
+            "messages_per_minute" to msgsPerMinute,
+            "safe_message_ratio" to safeRatio  // ← NEU: Wird von ContextAwareDetector genutzt
         )
     }
 

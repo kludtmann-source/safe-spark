@@ -15,6 +15,8 @@ import com.example.safespark.model.GroomingIntent
 import com.example.safespark.logging.DetectionLogger
 import com.example.safespark.logging.DetectionLogger.GroomingStage
 import com.example.safespark.config.DetectionConfig
+import com.example.safespark.trust.ContactTrustManager
+import com.example.safespark.trust.TrustLevel
 import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.io.Closeable
@@ -132,192 +134,18 @@ class KidGuardEngine(private val context: Context) : Closeable {
      * @param appPackage Package-Name der Quell-App (für Context-Aware Detection)
      * @return Score zwischen 0.0 und 1.0, wobei höhere Werte auf riskanten Content hinweisen
      */
+    /**
+     * Analysiert einen Text und gibt einen Risk-Score (0.0-1.0) zurück
+     * 
+     * @deprecated Use analyzeTextWithExplanation() or analyzeWithConversation() instead
+     * @param input Der zu analysierende Text
+     * @param appPackage Die App, aus der der Text stammt
+     * @return Risk-Score (0.0 = safe, 1.0 = high risk)
+     */
+    @Deprecated("Use analyzeTextWithExplanation() or analyzeWithConversation() instead", 
+        ReplaceWith("analyzeTextWithExplanation(input, appPackage).score"))
     fun analyzeText(input: String, appPackage: String = "unknown"): Float {
-        Log.d(TAG, "analyzeText() aufgerufen mit: '$input' (App: $appPackage)")
-        Log.e(TAG, "🔥 VERSION-CHECK: Assessment-Fix v2.0-WORKAROUND aktiv!")
-
-        // TEXT-LENGTH GATE: Skip short texts (DetectionConfig.MIN_TEXT_LENGTH)
-        if (input.trim().length < DetectionConfig.MIN_TEXT_LENGTH) {
-            Log.d(TAG, "⏭️ Text zu kurz (${input.trim().length} < ${DetectionConfig.MIN_TEXT_LENGTH}), skipping")
-            return 0.0f
-        }
-
-        // WORD COUNT GATE: Skip texts with too few words
-        val wordCount = input.trim().split(Regex("\\s+")).filter { it.isNotEmpty() }.size
-        if (wordCount < DetectionConfig.MIN_WORDS_FOR_PATTERN) {
-            Log.d(TAG, "⏭️ Zu wenig Wörter ($wordCount < ${DetectionConfig.MIN_WORDS_FOR_PATTERN}), skipping")
-            return 0.0f
-        }
-
-        val scores = mutableMapOf<String, Float>()
-
-        // 1. ML-Prediction (Basis: 90.5%)
-        val mlPrediction = mlDetector.predict(input)
-        if (mlPrediction != null) {
-            val mlScore = if (mlPrediction.isDangerous) mlPrediction.confidence else 0.0f
-            scores["ML"] = mlScore
-            Log.d(TAG, "🤖 ML-Prediction: ${mlPrediction.stage} (${(mlPrediction.confidence * 100).toInt()}%)")
-
-            // Track Stage für Progression-Analyse
-            if (mlPrediction.isDangerous && mlPrediction.confidence > 0.6f) {
-                val stageEvent = stageDetector.createStageEvent(
-                    stageName = mlPrediction.stage,
-                    confidence = mlPrediction.confidence,
-                    timestamp = System.currentTimeMillis(),
-                    messageText = input
-                )
-                stageHistory.add(stageEvent)
-
-                // Behalte nur letzte 20 Stages
-                if (stageHistory.size > 20) {
-                    stageHistory.removeAt(0)
-                }
-            }
-        }
-
-        // 2. Trigram-Detection (+3% Accuracy) - Check both DE and EN
-        val trigramResultDE = trigramDetector.detectTrigrams(input, "de")
-        val trigramResultEN = trigramDetector.detectTrigrams(input, "en")
-        val trigramResult = if (trigramResultDE.risk >= trigramResultEN.risk) trigramResultDE else trigramResultEN
-        scores["Trigram"] = trigramResult.risk
-        if (trigramResult.risk > 0.3f) {
-            Log.w(TAG, "🔺 Trigram Risk: ${(trigramResult.risk * 100).toInt()}% (${trigramResult.totalMatches} matches)")
-        }
-
-        // 3. Adult/Child Context Detection
-        val adultChildResult = adultChildDetector.analyzeMessage(input)
-        if (adultChildResult.isLikelyAdult && adultChildResult.adultScore > 0.7f) {
-            scores["AdultContext"] = adultChildResult.adultScore * 0.8f // Boost bei Adult-Kontext
-            Log.w(TAG, "👤 Adult Context detected: ${(adultChildResult.adultScore * 100).toInt()}%")
-        }
-
-        // 4. Context-Aware Detection (Springer Paper 978-3-031-62083-6)
-        val contextResult = contextDetector.analyzeWithContext(
-            appPackage = appPackage,  // ✅ Jetzt wird das echte Package übergeben!
-            text = input,
-            baseScore = scores["ML"] ?: 0f,
-            baseStage = mlPrediction?.stage ?: "UNKNOWN",
-            timestamp = System.currentTimeMillis()
-        )
-        scores["Context"] = contextResult.score
-        if (contextResult.score > 0.3f) {
-            Log.w(TAG, "📊 Context Risk: ${(contextResult.score * 100).toInt()}% (Bonus: +${(contextResult.contextBonus * 100).toInt()}%)")
-        }
-
-        // 5. Stage Progression Analysis (+1% Accuracy)
-        if (stageHistory.size >= 2) {
-            val progressionAnalysis = stageDetector.analyzeProgression(stageHistory)
-            scores["StageProgression"] = progressionAnalysis.riskScore
-
-            if (progressionAnalysis.isAnomalous) {
-                Log.e(TAG, "🚨 ANOMALOUS Stage Progression detected!")
-                progressionAnalysis.warnings.forEach { Log.e(TAG, "   $it") }
-            }
-        }
-
-        // 6. Check for bypass patterns first (these override all checks)
-        if (DetectionConfig.matchesBypassPattern(input)) {
-            Log.w(TAG, "🚨 BYPASS PATTERN detected - immediate high risk!")
-            return 0.95f
-        }
-
-        // 7. Spezifische Assessment-Pattern-Prüfung (collect score, no early return)
-        val lowerInput = input.lowercase().trim()
-
-        // NEGATIONS-CHECK: Reduziert False Positives
-        if (!DetectionConfig.containsNegation(input)) {
-            // High-Risk Assessment Patterns (only clearly suspicious patterns)
-            val assessmentPatterns = listOf(
-                // Isolation/Supervision - Deutsch (Phrasen)
-                "bist du allein" to 0.85f,
-                "bist du alleine" to 0.85f,
-                "bist du gerade allein" to 0.90f,
-                "ist jemand bei dir" to 0.80f,
-                "ist niemand da" to 0.85f,
-                "wo sind deine eltern" to 0.80f,
-                "ist deine tür zu" to 0.80f,
-                "bist du in deinem zimmer" to 0.75f,
-
-                // Isolation/Supervision - Englisch (Phrasen)
-                "are you alone" to 0.85f,
-                "are you home alone" to 0.90f,
-                "is anyone there" to 0.80f,
-                "where are your parents" to 0.80f,
-                "is your door closed" to 0.80f,
-
-                // Gift Giving - Only clearly suspicious patterns
-                "ich schicke dir geld" to 0.85f,
-                "ich schick dir geld" to 0.85f,
-                "ich gebe dir geld" to 0.85f,
-                "ich geb dir geld" to 0.85f,
-                "ich überweise dir" to 0.85f,
-                "i'll send you money" to 0.85f,
-                "i'll give you money" to 0.85f
-            )
-
-            for ((pattern, riskScore) in assessmentPatterns) {
-                if (lowerInput.contains(pattern)) {
-                    scores["Assessment"] = riskScore
-
-                    // 🚨 STRUCTURED FINDING LOG (nur positive!)
-                    DetectionLogger.logFinding(
-                        text = input,
-                        score = riskScore,
-                        stage = GroomingStage.ASSESSMENT,
-                        method = "Assessment-Pattern",
-                        pattern = pattern
-                    )
-
-                    break  // Only match first pattern
-                }
-            }
-        }
-
-        // 8. Keyword-Matching (Fallback) - Fixed threshold
-        val words = lowerInput.split(Regex("[\\s\\W]+"))
-        var riskCount = 0
-        val matchedKeywords = mutableListOf<String>()
-
-        for (word in words) {
-            if (word.isNotEmpty() && riskKeywords.contains(word)) {
-                riskCount++
-                matchedKeywords.add(word)
-                Log.d(TAG, "   🔴 Risk-Keyword gefunden: '$word'")
-            }
-        }
-
-        // Fixed keyword scoring: require more keywords or lower scores
-        val keywordScore = when {
-            riskCount == 0 -> 0.0f
-            riskCount == 1 -> 0.20f  // Reduced from 0.75f
-            riskCount == 2 -> 0.40f  // Reduced from 0.95f
-            else -> 0.75f  // 3+ keywords for meaningful score
-        }
-        scores["Keywords"] = keywordScore
-
-        // Apply confidence adjustment by length to all scores
-        val adjustedScores = scores.mapValues { (_, score) ->
-            DetectionConfig.adjustConfidenceByLength(score, input.length)
-        }.toMutableMap()
-
-        // Log adjustments if text is short
-        if (input.length < 30) {
-            Log.d(TAG, "📏 Length adjustment applied (text length: ${input.length})")
-        }
-
-        // Check for layer agreement (dual-confirmation)
-        if (!DetectionConfig.hasLayerAgreement(adjustedScores)) {
-            Log.d(TAG, "⚠️ Insufficient layer agreement - returning safe result")
-            return 0.0f
-        }
-
-        // KOMBINIERE ALLE SCORES (gewichteter Durchschnitt)
-        val finalScore = calculateWeightedScore(adjustedScores)
-
-        Log.d(TAG, "📊 Detection Scores: ${adjustedScores.map { "${it.key}=${(it.value*100).toInt()}%" }.joinToString(", ")}")
-        Log.d(TAG, "🎯 FINAL SCORE: ${(finalScore * 100).toInt()}%")
-
-        return finalScore
+        return analyzeTextWithExplanation(input, appPackage).score
     }
 
     /**
@@ -642,9 +470,11 @@ class KidGuardEngine(private val context: Context) : Closeable {
         var totalWeight = 0.0f
 
         scores.forEach { (key, score) ->
-            val weight = weights[key] ?: 0.0f
-            weightedSum += score * weight
-            totalWeight += weight
+            if (score > 0.0f) {  // ← Nur non-zero Scores zählen!
+                val weight = weights[key] ?: 0.0f
+                weightedSum += score * weight
+                totalWeight += weight
+            }
         }
 
         // Normalisiere auf vorhandene Weights
@@ -809,9 +639,13 @@ class KidGuardEngine(private val context: Context) : Closeable {
                     // Apply confidence adjustment by length before checking threshold
                     val adjustedConfidence = DetectionConfig.adjustConfidenceByLength(ospreyResult.confidence, input.length)
 
-                    // Check that the Osprey confidence exceeds OSPREY_THRESHOLD before returning as risk
+                    // Check that the Osprey confidence exceeds OSPREY_THRESHOLD
                     if (adjustedConfidence > DetectionConfig.OSPREY_THRESHOLD) {
-                        Log.w(TAG, "⚠️ OSPREY CONVERSATION RISK: ${ospreyResult.stage}")
+                        Log.w(TAG, "⚠️ OSPREY CONVERSATION RISK: ${ospreyResult.stage} (${(adjustedConfidence*100).toInt()}%)")
+                        
+                        // Score wird als riskScore gespeichert, aber kein Sofort-Return
+                        // Fällt durch zum normalen Multi-Layer-Pfad (analyzeTextWithExplanation)
+                        message.riskScore = adjustedConfidence
 
                         // Logge Finding
                         DetectionLogger.logFinding(
@@ -821,17 +655,7 @@ class KidGuardEngine(private val context: Context) : Closeable {
                             method = "Osprey-Conversation",
                             pattern = ospreyResult.dominantProgression
                         )
-
-                        return AnalysisResult(
-                            score = adjustedConfidence,
-                            isRisk = true,
-                            stage = ospreyResult.stage,
-                            explanation = ospreyResult.explanation,
-                            detectionMethod = "Osprey-Conversation",
-                            detectedPatterns = listOfNotNull(ospreyResult.dominantProgression),
-                            confidence = adjustedConfidence,
-                            allStageScores = ospreyResult.allStageScores
-                        )
+                        // Sofort-Return ENTFERNT – stattdessen durch den normalen Pfad laufen lassen
                     }
                 }
             } catch (e: Exception) {
@@ -840,7 +664,38 @@ class KidGuardEngine(private val context: Context) : Closeable {
         }
 
         // 5. Fallback: Einzelnachricht-Analyse
-        return analyzeTextWithExplanation(input, appPackage)
+        val baseResult = analyzeTextWithExplanation(input, appPackage)
+
+        // Trust-Level abrufen und anwenden (blocking call da wir schon im IO-Kontext sind)
+        // Da analyzeWithConversation nicht suspend ist, nutzen wir runBlocking nur für den Trust-Lookup
+        val trustLevel = try {
+            kotlinx.coroutines.runBlocking {
+                ContactTrustManager.getTrustLevel(contactId, context)
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "⚠️ Trust lookup failed, using UNKNOWN", e)
+            TrustLevel.UNKNOWN
+        }
+
+        val adjustedScore = ContactTrustManager.applyTrustModifier(baseResult.score, trustLevel, input)
+
+        // Contact-Stats updaten
+        try {
+            kotlinx.coroutines.runBlocking {
+                ContactTrustManager.updateContactStats(contactId, adjustedScore, context)
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "⚠️ Trust stats update failed", e)
+        }
+
+        return if (adjustedScore != baseResult.score) {
+            baseResult.copy(
+                score = adjustedScore,
+                isRisk = adjustedScore > 0.5f
+            )
+        } else {
+            baseResult
+        }
     }
 
     /**
