@@ -23,7 +23,6 @@ class GuardianAccessibilityService : AccessibilityService() {
     // ✅ Database Repository
     private var repository: RiskEventRepository? = null
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
-    private val TAG = "GuardianAccessibility"
     private val dateFormat = SimpleDateFormat("HH:mm:ss.SSS", Locale.US)
 
     private val analyzedTextCache = mutableSetOf<String>()
@@ -33,6 +32,17 @@ class GuardianAccessibilityService : AccessibilityService() {
     private val minEventInterval = 0L
 
     private var debugMode = true
+
+    companion object {
+        private const val TAG = "GuardianAccessibility"
+        
+        // Chat-Titel Extraktion: Konstanten
+        private const val MAX_NODE_SEARCH_DEPTH = 10  // Begrenzt rekursive Suche aus Performance-/Sicherheitsgründen
+        
+        // Precompiled Regexes für bessere Performance
+        private val PARENTHETICAL_REGEX = Regex("\\s*\\(.*?\\)\\s*")  // Entfernt (online), (typing)
+        private val WHITESPACE_REGEX = Regex("\\s+")  // Normalisiert Whitespace
+    }
 
     override fun onCreate() {
         super.onCreate()
@@ -169,6 +179,10 @@ class GuardianAccessibilityService : AccessibilityService() {
 
         Log.d(TAG, "  📊 Extrahierte Texte: ${texts.size} Stück")
 
+        // 🔥 NEUE LOGIK: Chat-Titel extrahieren für per-Contact-Buffers
+        val chatTitle = extractChatTitle(event, packageName)
+        Log.d(TAG, "  💬 Chat-Identifier: '$chatTitle'")
+
         for (text in texts) {
             if (text.isEmpty()) {
                 Log.d(TAG, "  ⏭️ Leerer Text übersprungen")
@@ -184,11 +198,11 @@ class GuardianAccessibilityService : AccessibilityService() {
             Log.d(TAG, "  🔍 ANALYSIERE TEXT: '$text'")
 
             // ✅ Nutze Konversations-basierte Analyse für Osprey-Integration
-            // chatIdentifier: Nutze Package als Pseudo-ID (Chat-Titel nicht immer verfügbar)
+            // chatIdentifier: Nutze extrahierten Chat-Titel für per-Contact-Buffers
             val result = getEngine().analyzeWithConversation(
                 input = text,
                 appPackage = packageName,
-                chatIdentifier = packageName,  // TODO: Chat-Titel aus UI extrahieren wenn möglich
+                chatIdentifier = chatTitle,  // ✅ Chat-Titel aus UI extrahiert (Fallback: packageName)
                 isLocalUser = false  // Annahme: Empfangene Nachrichten sind vom Kontakt
             )
             val scorePercent = (result.score * 100).toInt()
@@ -363,6 +377,136 @@ class GuardianAccessibilityService : AccessibilityService() {
     }
 
     /**
+     * 🔥 Extrahiert Chat-Titel aus AccessibilityEvent
+     * 
+     * Versucht den Chat-Titel aus verschiedenen Quellen zu extrahieren:
+     * 1. Window-Titel (für WhatsApp, Telegram, etc.)
+     * 2. View-Hierarchie (Toolbar/ActionBar)
+     * 3. Fallback: packageName
+     * 
+     * DSGVO: Der Titel wird im Klartext zurückgegeben, aber vom Aufrufer
+     * sofort an generateContactId() übergeben, wo er gehasht wird.
+     * Der Klartext-Titel wird nie persistent gespeichert.
+     * 
+     * @param event AccessibilityEvent
+     * @param packageName Fallback wenn kein Titel gefunden
+     * @return Chat-Titel oder packageName als Fallback
+     */
+    private fun extractChatTitle(event: AccessibilityEvent, packageName: String): String {
+        try {
+            // 1. Versuche Window-Titel (funktioniert für viele Messenger)
+            val source = event.source
+            if (source != null) {
+                // Window-Titel abrufen
+                val window = source.window
+                if (window != null) {
+                    val windowTitle = window.title?.toString()
+                    if (!windowTitle.isNullOrBlank() && isValidChatTitle(windowTitle)) {
+                        Log.d(TAG, "📱 Chat-Titel aus Window: '$windowTitle'")
+                        return sanitizeChatTitle(windowTitle)
+                    }
+                }
+                
+                // 2. Durchsuche View-Hierarchie nach Toolbar/ActionBar
+                val chatTitle = findChatTitleInNodeTree(source)
+                if (chatTitle != null) {
+                    Log.d(TAG, "📱 Chat-Titel aus Node-Tree: '$chatTitle'")
+                    return chatTitle
+                }
+            }
+            
+            Log.d(TAG, "⚠️ Kein Chat-Titel gefunden, nutze Package als Fallback")
+        } catch (e: Exception) {
+            Log.w(TAG, "⚠️ Fehler bei Chat-Titel-Extraktion: ${e.message}")
+        }
+        
+        // Fallback: packageName
+        return packageName
+    }
+    
+    /**
+     * Durchsucht Node-Tree nach Chat-Titel
+     * Sucht nach typischen ViewId-Patterns für Messenger-Toolbars
+     */
+    private fun findChatTitleInNodeTree(node: android.view.accessibility.AccessibilityNodeInfo?): String? {
+        if (node == null) return null
+        
+        try {
+            // Typische ViewIds für Chat-Titel in Messengern
+            val titleViewIds = listOf(
+                "action_bar_title",
+                "conversation_title",
+                "contact_name",
+                "chat_title",
+                "toolbar_title",
+                "title",
+                "header_title"
+            )
+            
+            // Prüfe ob dieser Node einen Chat-Titel enthält
+            val viewId = node.viewIdResourceName?.toString() ?: ""
+            if (titleViewIds.any { viewId.contains(it, ignoreCase = true) }) {
+                val text = node.text?.toString()
+                if (!text.isNullOrBlank() && isValidChatTitle(text)) {
+                    return sanitizeChatTitle(text)
+                }
+                
+                val contentDesc = node.contentDescription?.toString()
+                if (!contentDesc.isNullOrBlank() && isValidChatTitle(contentDesc)) {
+                    return sanitizeChatTitle(contentDesc)
+                }
+            }
+            
+            // Rekursiv durch Kinder (begrenzte Tiefe)
+            for (i in 0 until minOf(node.childCount, MAX_NODE_SEARCH_DEPTH)) {
+                node.getChild(i)?.let { child ->
+                    val result = findChatTitleInNodeTree(child)
+                    child.recycle()
+                    if (result != null) return result
+                }
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Fehler bei Node-Tree-Suche: ${e.message}")
+        }
+        
+        return null
+    }
+    
+    /**
+     * Prüft ob ein String ein valider Chat-Titel ist
+     * Filtert System-Strings und ungültige Werte aus
+     */
+    private fun isValidChatTitle(title: String): Boolean {
+        val trimmed = title.trim()
+        
+        // Zu kurz oder zu lang
+        if (trimmed.length < 2 || trimmed.length > 100) return false
+        
+        // System-Strings filtern
+        val invalidPatterns = listOf(
+            "whatsapp", "telegram", "signal", "messenger", "instagram",
+            "loading", "connecting", "null", "undefined",
+            "android", "system"
+        )
+        
+        val lowerTitle = trimmed.lowercase()
+        if (invalidPatterns.any { lowerTitle == it }) return false
+        
+        return true
+    }
+    
+    /**
+     * Bereinigt Chat-Titel von Sonderzeichen und Status-Infos
+     * z.B. "Max (online)" -> "Max"
+     */
+    private fun sanitizeChatTitle(title: String): String {
+        return title.trim()
+            .replace(PARENTHETICAL_REGEX, "") // Entferne (online), (typing), etc.
+            .replace(WHITESPACE_REGEX, " ") // Normalisiere Whitespace
+            .trim()
+    }
+
+    /**
      * 🔥 Rekursive Text-Extraktion aus AccessibilityNodeInfo
      * Durchsucht die View-Hierarchie nach Text (z.B. für WhatsApp/Telegram)
      */
@@ -393,9 +537,5 @@ class GuardianAccessibilityService : AccessibilityService() {
         ConversationBuffer.clearAll()
         safeSparkEngine?.close()
         safeSparkEngine = null
-    }
-
-    companion object {
-        private const val TAG = "GuardianAccessibility"
     }
 }
