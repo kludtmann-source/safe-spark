@@ -236,7 +236,7 @@ class KidGuardEngine(private val context: Context) : Closeable {
                 // Collect semantic score instead of early return
                 if (semanticResult.isRisk && semanticResult.intent != null) {
                     scores["Semantic"] = semanticResult.similarity
-                    detectedPatterns.add(semanticResult.matchedSeed)
+                    semanticResult.matchedSeed?.let { detectedPatterns.add(it) }
                     detectionMethod = "Semantic-${semanticResult.intent}"
                     
                     val intent = semanticResult.intent
