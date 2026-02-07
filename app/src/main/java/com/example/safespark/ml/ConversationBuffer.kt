@@ -28,7 +28,8 @@ object ConversationBuffer {
         val text: String,
         val authorId: String,
         val timestamp: Long,
-        val isLocalUser: Boolean
+        val isLocalUser: Boolean,
+        var riskScore: Float = 0f  // Score der Nachricht nach Analyse
     )
 
     /**
@@ -183,6 +184,24 @@ object ConversationBuffer {
     fun hasConversation(contactId: String): Boolean {
         return conversations.containsKey(contactId) &&
                (conversations[contactId]?.isNotEmpty() ?: false)
+    }
+    
+    /**
+     * Berechnet Safe-Context-Score basierend auf bisherigem Konversationsverlauf
+     *
+     * @param contactId Contact-ID
+     * @return Safe-Ratio (0.0 = alles verdächtig, 1.0 = alles harmlos)
+     */
+    @Synchronized
+    fun getSafeContextScore(contactId: String): Float {
+        val messages = getConversation(contactId)
+        if (messages.size < 3) return 0f  // Zu wenig Kontext
+        
+        val previousMessages = messages.dropLast(1) // Ohne aktuelle Nachricht
+        if (previousMessages.isEmpty()) return 0f
+        
+        val safeRatio = previousMessages.count { it.riskScore < 0.3f }.toFloat() / previousMessages.size
+        return safeRatio  // 0.0 = alles verdächtig, 1.0 = alles harmlos
     }
 
     /**

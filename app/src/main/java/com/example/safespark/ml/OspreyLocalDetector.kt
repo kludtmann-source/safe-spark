@@ -274,7 +274,8 @@ class OspreyLocalDetector(private val context: Context) : Closeable {
             if (highestRisk != null) {
                 finalStage = highestRisk.first
                 finalConfidence = highestRisk.second
-                isRisk = true
+                val threshold = STAGE_THRESHOLDS[finalStage] ?: 0.5f
+                isRisk = finalConfidence > threshold  // Threshold-Check statt immer true
             } else {
                 finalStage = "SAFE"
                 finalConfidence = 1.0f
