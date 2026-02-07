@@ -6,14 +6,17 @@ import com.example.safespark.config.DetectionConfig
 import com.example.safespark.database.KidGuardDatabase
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Trust Level Enum
+ * 
+ * Fix 2: Less aggressive multipliers to prevent false negatives
  */
 enum class TrustLevel(val scoreMultiplier: Float) {
-    FAMILY(0.3f),    // Eltern-Whitelist: Score × 0.3 (−70%)
-    TRUSTED(0.5f),   // >100 msgs, 0 risks: Score × 0.5 (−50%)
-    KNOWN(0.8f),     // >20 msgs, <2 risks: Score × 0.8 (−20%)
+    FAMILY(0.4f),    // Eltern-Whitelist: Score × 0.4 (−60%) - was 0.3f
+    TRUSTED(0.7f),   // >100 msgs, 0 risks: Score × 0.7 (−30%) - was 0.5f
+    KNOWN(0.85f),    // >20 msgs, <2 risks: Score × 0.85 (−15%) - was 0.8f
     UNKNOWN(1.0f)    // Default: keine Reduktion
 }
 
@@ -24,11 +27,58 @@ enum class TrustLevel(val scoreMultiplier: Float) {
  * 1. Eltern-Whitelist (manuell gesetzt)
  * 2. Automatisches Lernen basierend auf Historie
  *
+ * Fix 1: In-memory cache to prevent runBlocking ANR
+ *
  * WICHTIG: BYPASS_PATTERNS müssen IMMER vollen Score behalten!
  */
 object ContactTrustManager {
     
     private const val TAG = "ContactTrustManager"
+    
+    /**
+     * Fix 1: In-memory trust cache (thread-safe)
+     * Prevents ANR by avoiding runBlocking on main thread
+     */
+    private val trustCache = ConcurrentHashMap<String, TrustLevel>()
+    
+    /**
+     * Fix 1: In-memory trust cache (thread-safe)
+     * Prevents ANR by avoiding runBlocking on main thread
+     */
+    private val trustCache = ConcurrentHashMap<String, TrustLevel>()
+    
+    /**
+     * Fix 1: Synchronous cache-only trust level lookup
+     * Returns UNKNOWN on cache miss (safest default)
+     * 
+     * @param contactId Contact-ID
+     * @return Trust-Level from cache or UNKNOWN
+     */
+    fun getTrustLevelSync(contactId: String): TrustLevel {
+        return trustCache[contactId] ?: TrustLevel.UNKNOWN
+    }
+    
+    /**
+     * Fix 1: Refresh trust cache from database (suspend function)
+     * 
+     * @param contactId Contact-ID
+     * @param context Android Context
+     */
+    suspend fun refreshTrustCache(contactId: String, context: Context) {
+        val level = getTrustLevel(contactId, context)
+        trustCache[contactId] = level
+    }
+    
+    /**
+     * Fix 1: Update cache directly (for inline updates)
+     * 
+     * @param contactId Contact-ID
+     * @param level Trust-Level
+     */
+    fun updateCacheDirectly(contactId: String, level: TrustLevel) {
+        trustCache[contactId] = level
+        Log.d(TAG, "📦 Cache updated: $contactId → $level")
+    }
     
     /**
      * Bestimmt das Trust-Level für einen Kontakt
@@ -37,6 +87,8 @@ object ContactTrustManager {
      * 1. Eltern-Whitelist (manuallySet = true)
      * 2. Automatisches Lernen basierend auf Historie
      * 3. Default = UNKNOWN
+     *
+     * Fix 1: Also updates cache
      *
      * @param contactId Pseudonymisierte Contact-ID
      * @param context Android Context für DB-Zugriff
@@ -50,6 +102,7 @@ object ContactTrustManager {
                 
                 if (contact == null) {
                     Log.d(TAG, "📊 Contact $contactId: UNKNOWN (not in DB)")
+                    trustCache[contactId] = TrustLevel.UNKNOWN
                     return@withContext TrustLevel.UNKNOWN
                 }
                 
@@ -57,17 +110,20 @@ object ContactTrustManager {
                 if (contact.manuallySet) {
                     val level = TrustLevel.valueOf(contact.trustLevel)
                     Log.d(TAG, "📊 Contact $contactId: $level (manually set)")
+                    trustCache[contactId] = level
                     return@withContext level
                 }
                 
                 // Priorität 2: Automatisches Lernen basierend auf Historie
                 val level = calculateAutoTrustLevel(contact)
                 Log.d(TAG, "📊 Contact $contactId: $level (auto-learned from ${contact.totalMessages} msgs, ${contact.riskMessageCount} risks)")
+                trustCache[contactId] = level
                 
                 return@withContext level
                 
             } catch (e: Exception) {
                 Log.e(TAG, "❌ Error getting trust level for $contactId", e)
+                trustCache[contactId] = TrustLevel.UNKNOWN
                 return@withContext TrustLevel.UNKNOWN
             }
         }
@@ -94,9 +150,11 @@ object ContactTrustManager {
     
     /**
      * Aktualisiert die Statistiken für einen Kontakt
+     * 
+     * Fix 4: Risk-spike degradation
      *
      * @param contactId Contact-ID
-     * @param messageRiskScore Risk-Score der neuen Nachricht
+     * @param messageRiskScore Risk-Score der neuen Nachricht (RAW score, before trust modifier!)
      * @param context Android Context
      */
     suspend fun updateContactStats(
@@ -110,6 +168,17 @@ object ContactTrustManager {
                 val existing = dao.getContact(contactId)
                 
                 val contact = if (existing != null) {
+                    // Fix 4: Risk-spike detection
+                    val currentTrustLevel = TrustLevel.valueOf(existing.trustLevel)
+                    val shouldDegradeFromSpike = messageRiskScore > 0.75f &&
+                        (currentTrustLevel == TrustLevel.TRUSTED || currentTrustLevel == TrustLevel.KNOWN) &&
+                        !existing.manuallySet
+                    
+                    if (shouldDegradeFromSpike) {
+                        Log.w(TAG, "🚨 TRUST DEGRADATION: $contactId demoted from $currentTrustLevel → UNKNOWN (risk spike: ${(messageRiskScore*100).toInt()}%)")
+                        updateCacheDirectly(contactId, TrustLevel.UNKNOWN)
+                    }
+                    
                     // Update existing contact
                     val isRisk = messageRiskScore > 0.5f
                     val newTotalMessages = existing.totalMessages + 1
@@ -120,8 +189,11 @@ object ContactTrustManager {
                     val newAvgRiskScore = ((existing.averageRiskScore * existing.totalMessages) + messageRiskScore) / newTotalMessages
                     
                     // Wenn manuell gesetzt, nur Stats updaten, nicht Trust-Level
+                    // Fix 4: Apply degradation immediately
                     val newTrustLevel = if (existing.manuallySet) {
                         existing.trustLevel
+                    } else if (shouldDegradeFromSpike) {
+                        TrustLevel.UNKNOWN.name
                     } else {
                         val tempContact = existing.copy(
                             totalMessages = newTotalMessages,
@@ -154,6 +226,8 @@ object ContactTrustManager {
                 }
                 
                 dao.insert(contact)
+                // Update cache after DB insert
+                updateCacheDirectly(contactId, TrustLevel.valueOf(contact.trustLevel))
                 Log.d(TAG, "✅ Updated stats for $contactId: ${contact.totalMessages} msgs, ${contact.riskMessageCount} risks, trust=${contact.trustLevel}")
                 
             } catch (e: Exception) {
@@ -165,6 +239,8 @@ object ContactTrustManager {
     /**
      * Wendet Trust-Level-Modifikator auf einen Score an
      *
+     * Fix 2: Minimum score floor to prevent false negatives
+     *
      * WICHTIG: BYPASS_PATTERNS bleiben immer bei vollem Score!
      *
      * @param baseScore Original-Score vor Trust-Modifikation
@@ -173,7 +249,7 @@ object ContactTrustManager {
      * @return Modifizierter Score
      */
     fun applyTrustModifier(baseScore: Float, trustLevel: TrustLevel, text: String): Float {
-        // BYPASS_PATTERNS dürfen NICHT reduziert werden!
+        // Fix 2: BYPASS_PATTERNS dürfen NICHT reduziert werden!
         if (DetectionConfig.matchesBypassPattern(text)) {
             Log.w(TAG, "🚨 BYPASS PATTERN detected - keeping full score regardless of trust level")
             return baseScore
@@ -181,11 +257,20 @@ object ContactTrustManager {
         
         val modifiedScore = baseScore * trustLevel.scoreMultiplier
         
-        if (trustLevel != TrustLevel.UNKNOWN) {
-            Log.d(TAG, "📊 Trust modifier applied: ${(baseScore * 100).toInt()}% → ${(modifiedScore * 100).toInt()}% (Trust: $trustLevel)")
+        // Fix 2: Minimum score floor - high-risk content must not be fully suppressed
+        // If raw score is clearly dangerous (>= 0.80), keep it above isRisk threshold (0.5)
+        val finalScore = if (baseScore >= 0.80f && modifiedScore < 0.55f) {
+            Log.w(TAG, "🚨 SCORE FLOOR applied: ${(modifiedScore * 100).toInt()}% → 55% (base was ${(baseScore * 100).toInt()}%)")
+            0.55f
+        } else {
+            modifiedScore
         }
         
-        return modifiedScore
+        if (trustLevel != TrustLevel.UNKNOWN) {
+            Log.d(TAG, "📊 Trust modifier applied: ${(baseScore * 100).toInt()}% → ${(finalScore * 100).toInt()}% (Trust: $trustLevel)")
+        }
+        
+        return finalScore
     }
     
     /**

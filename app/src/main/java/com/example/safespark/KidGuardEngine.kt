@@ -17,6 +17,9 @@ import com.example.safespark.logging.DetectionLogger.GroomingStage
 import com.example.safespark.config.DetectionConfig
 import com.example.safespark.trust.ContactTrustManager
 import com.example.safespark.trust.TrustLevel
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.io.Closeable
@@ -157,11 +160,18 @@ class KidGuardEngine(private val context: Context) : Closeable {
      * 1. Assessment-Pattern Check
      * 2. ML-Modell + weitere Detektoren
      *
+     * Fix 3: Added additionalScores parameter for conversation-level scores
+     *
      * @param input Der zu analysierende Text
      * @param appPackage Package-Name der Quell-App
+     * @param additionalScores Additional scores from conversation-level analysis (e.g., OspreyConversation)
      * @return AnalysisResult mit Score und Erklärung
      */
-    fun analyzeTextWithExplanation(input: String, appPackage: String = "unknown"): AnalysisResult {
+    fun analyzeTextWithExplanation(
+        input: String, 
+        appPackage: String = "unknown",
+        additionalScores: Map<String, Float> = emptyMap()
+    ): AnalysisResult {
         if (input.isBlank()) {
             return AnalysisResult(
                 score = 0.0f,
@@ -195,6 +205,9 @@ class KidGuardEngine(private val context: Context) : Closeable {
         }
 
         val scores = mutableMapOf<String, Float>()
+        // Fix 3: Merge additionalScores at the start
+        scores.putAll(additionalScores)
+        
         val detectedPatterns = mutableListOf<String>()
         var detectionMethod = "Unknown"
         var explanation = ""
@@ -429,6 +442,8 @@ class KidGuardEngine(private val context: Context) : Closeable {
      * Berechnet gewichteten Score aus allen Detection-Layers
      *
      * Basierend auf Papers: Frontiers Pediatrics, ArXiv 2409.07958v1
+     * 
+     * Fix 3: Added OspreyConversation layer and rebalanced weights
      */
     private fun calculateWeightedScore(scores: Map<String, Float>): Float {
         if (scores.isEmpty()) return 0.0f
@@ -453,17 +468,18 @@ class KidGuardEngine(private val context: Context) : Closeable {
             Log.w(TAG, "  Adult-Context (potentieller Groomer) erkannt! Score: ${(adultContextScore*100).toInt()}%")
         }
 
-        // Gewichte pro Detection-Layer (optimiert für ~95% Accuracy)
+        // Fix 3: Gewichte pro Detection-Layer (rebalanced with OspreyConversation)
         val weights = mapOf(
-            "Semantic" to 0.25f,        // Semantic: 25% (HÖCHSTE PRIORITÄT)
-            "Osprey" to 0.20f,          // Osprey Transformer: 20% (6-Stage-Detection)
-            "ML" to 0.20f,              // ML-Modell: 20% (Basis)
-            "Trigram" to 0.12f,         // Trigrams: 12% (+3% Accuracy)
-            "AdultContext" to 0.10f,    // Adult Context: 10%
-            "Context" to 0.08f,         // Context-Aware: 8%
-            "StageProgression" to 0.03f, // Stage Progression: 3% (+1% Accuracy)
-            "Assessment" to 0.15f,      // Assessment Patterns: 15% (increased from 0.01f)
-            "Keywords" to 0.01f         // Keywords: 1% (Fallback)
+            "Semantic" to 0.22f,              // Semantic: 22% (was 25%)
+            "OspreyConversation" to 0.18f,    // Osprey Conversation: 18% (NEW!)
+            "Osprey" to 0.15f,                // Osprey Transformer: 15% (was 20%)
+            "ML" to 0.18f,                    // ML-Modell: 18% (was 20%)
+            "Trigram" to 0.10f,               // Trigrams: 10% (was 12%)
+            "AdultContext" to 0.08f,          // Adult Context: 8% (was 10%)
+            "Context" to 0.05f,               // Context-Aware: 5% (was 8%)
+            "StageProgression" to 0.02f,      // Stage Progression: 2% (was 3%)
+            "Assessment" to 0.12f,            // Assessment Patterns: 12% (was 15%)
+            "Keywords" to 0.01f               // Keywords: 1% (unchanged)
         )
 
         var weightedSum = 0.0f
@@ -629,6 +645,9 @@ class KidGuardEngine(private val context: Context) : Closeable {
         val conversation = ConversationBuffer.getConversation(contactId)
         val contextFeatures = ConversationBuffer.getContextFeatures(contactId)
 
+        // Fix 3: Collect Osprey conversation score for feeding into multi-layer scoring
+        val conversationScores = mutableMapOf<String, Float>()
+        
         // 4. Analysiere mit Osprey auf Konversationsebene (wenn verfügbar)
         ospreyDetector?.let { detector ->
             try {
@@ -646,6 +665,9 @@ class KidGuardEngine(private val context: Context) : Closeable {
                         // Score wird als riskScore gespeichert, aber kein Sofort-Return
                         // Fällt durch zum normalen Multi-Layer-Pfad (analyzeTextWithExplanation)
                         message.riskScore = adjustedConfidence
+                        
+                        // Fix 3: Collect score for multi-layer analysis
+                        conversationScores["OspreyConversation"] = adjustedConfidence
 
                         // Logge Finding
                         DetectionLogger.logFinding(
@@ -663,29 +685,39 @@ class KidGuardEngine(private val context: Context) : Closeable {
             }
         }
 
-        // 5. Fallback: Einzelnachricht-Analyse
-        val baseResult = analyzeTextWithExplanation(input, appPackage)
+        // Fix 3: Pass conversation scores to analyzeTextWithExplanation
+        var baseResult = analyzeTextWithExplanation(input, appPackage, conversationScores)
+        
+        // Fix 5: Apply safe-context boost if conversation history is suspicious
+        val safeContextScore = ConversationBuffer.getSafeContextScore(contactId)
+        if (safeContextScore < 0.3f && conversation.size >= 5) {
+            val boostedScore = (baseResult.score + 0.1f).coerceIn(0f, 1f)
+            Log.w(TAG, "🚨 CONTEXT BOOST applied: ${(baseResult.score * 100).toInt()}% → ${(boostedScore * 100).toInt()}% (safeContext: ${(safeContextScore * 100).toInt()}%)")
+            baseResult = baseResult.copy(score = boostedScore, isRisk = boostedScore > 0.5f)
+        }
 
-        // Trust-Level abrufen und anwenden (blocking call da wir schon im IO-Kontext sind)
-        // Da analyzeWithConversation nicht suspend ist, nutzen wir runBlocking nur für den Trust-Lookup
-        val trustLevel = try {
-            kotlinx.coroutines.runBlocking {
-                ContactTrustManager.getTrustLevel(contactId, context)
+        // Fix 1: Use sync cache lookup instead of runBlocking
+        val trustLevel = ContactTrustManager.getTrustLevelSync(contactId)
+        
+        // Fix 1: Fire-and-forget async refresh (non-blocking)
+        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+            try {
+                ContactTrustManager.refreshTrustCache(contactId, context)
+            } catch (e: Exception) {
+                Log.w(TAG, "⚠️ Async trust cache refresh failed", e)
             }
-        } catch (e: Exception) {
-            Log.w(TAG, "⚠️ Trust lookup failed, using UNKNOWN", e)
-            TrustLevel.UNKNOWN
         }
 
         val adjustedScore = ContactTrustManager.applyTrustModifier(baseResult.score, trustLevel, input)
 
-        // Contact-Stats updaten
-        try {
-            kotlinx.coroutines.runBlocking {
-                ContactTrustManager.updateContactStats(contactId, adjustedScore, context)
+        // Fix 1 & Fix 4: Fire-and-forget async stats update with RAW score (before trust modifier)
+        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+            try {
+                // Fix 4: Pass RAW baseResult.score for risk-spike detection
+                ContactTrustManager.updateContactStats(contactId, baseResult.score, context)
+            } catch (e: Exception) {
+                Log.w(TAG, "⚠️ Async contact stats update failed", e)
             }
-        } catch (e: Exception) {
-            Log.w(TAG, "⚠️ Trust stats update failed", e)
         }
 
         return if (adjustedScore != baseResult.score) {
