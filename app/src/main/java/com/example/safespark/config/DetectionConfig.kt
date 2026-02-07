@@ -60,7 +60,7 @@ object DetectionConfig {
      * Minimum words required for pattern matching
      *
      * Einzelwörter und sehr kurze Sätze → kein Pattern-Match möglich
-     * Erhöht von 3 auf 4 um False Positives zu reduzieren
+     * Set to 4 to block 3-word texts like "Ja, mach ich..." from being analyzed
      */
     const val MIN_WORDS_FOR_PATTERN = 4
 
