@@ -175,8 +175,10 @@ class KidGuardEngine(private val context: Context) : Closeable {
             }
         }
 
-        // 2. Trigram-Detection (+3% Accuracy)
-        val trigramResult = trigramDetector.detectTrigrams(input, "de")
+        // 2. Trigram-Detection (+3% Accuracy) - Check both DE and EN
+        val trigramResultDE = trigramDetector.detectTrigrams(input, "de")
+        val trigramResultEN = trigramDetector.detectTrigrams(input, "en")
+        val trigramResult = if (trigramResultDE.risk >= trigramResultEN.risk) trigramResultDE else trigramResultEN
         scores["Trigram"] = trigramResult.risk
         if (trigramResult.risk > 0.3f) {
             Log.w(TAG, "🔺 Trigram Risk: ${(trigramResult.risk * 100).toInt()}% (${trigramResult.totalMatches} matches)")
@@ -510,8 +512,10 @@ class KidGuardEngine(private val context: Context) : Closeable {
             }
         }
 
-        // 3. Trigram Detection
-        val trigramResult = trigramDetector.detectTrigrams(input, "de")
+        // 3. Trigram Detection - Check both DE and EN
+        val trigramResultDE = trigramDetector.detectTrigrams(input, "de")
+        val trigramResultEN = trigramDetector.detectTrigrams(input, "en")
+        val trigramResult = if (trigramResultDE.risk >= trigramResultEN.risk) trigramResultDE else trigramResultEN
         if (trigramResult.risk > 0.6f) {
             scores["Trigram"] = trigramResult.risk
             detectedPatterns.add("Trigram-Muster")
@@ -596,7 +600,6 @@ class KidGuardEngine(private val context: Context) : Closeable {
     /**
      * Berechnet gewichteten Score aus allen Detection-Layers
      *
-     * ⚠️ WICHTIG: Assessment-Patterns und Stage-Anomalien haben Priorität!
      * Basierend auf Papers: Frontiers Pediatrics, ArXiv 2409.07958v1
      */
     private fun calculateWeightedScore(scores: Map<String, Float>): Float {
@@ -608,31 +611,18 @@ class KidGuardEngine(private val context: Context) : Closeable {
             Log.e(TAG, "  $key = ${(value*100).toInt()}%")
         }
 
-        // 🚨 CRITICAL 1: Assessment-Pattern überschreibt andere Scores!
+        // Log Assessment, StageProgression, and AdultContext scores for debugging
         val assessmentScore = scores["Assessment"] ?: 0.0f
-        Log.e(TAG, "  Assessment-Check: ${(assessmentScore*100).toInt()}% (Schwelle: 50%)")
-
-        if (assessmentScore > 0.5f) {
-            Log.e(TAG, "🚨 Assessment-Pattern hat Priorität! RETURN: ${(assessmentScore*100).toInt()}%")
-            Log.e(TAG, "━━━ calculateWeightedScore END (Assessment-Priority) ━━━")
-            return assessmentScore
-        } else {
-            Log.e(TAG, "  → Assessment zu niedrig, weiter mit Stage-Check")
-        }
-
-        // 🚨 CRITICAL 2: Stage-Anomalie hat Priorität! (Frontiers Paper)
-        // Anomale Progression (z.B. Trust → Assessment direkt) = RED FLAG
+        Log.e(TAG, "  Assessment-Check: ${(assessmentScore*100).toInt()}%")
+        
         val stageProgressionScore = scores["StageProgression"] ?: 0.0f
         if (stageProgressionScore > 0.7f) {
-            Log.w(TAG, "🚨 Stage-Anomalie erkannt! Score: ${(stageProgressionScore*100).toInt()}%")
-            return stageProgressionScore
+            Log.w(TAG, "  Stage-Anomalie erkannt! Score: ${(stageProgressionScore*100).toInt()}%")
         }
-
-        // 🚨 CRITICAL 3: Adult-Child Context hat Priorität! (ArXiv Paper)
+        
         val adultContextScore = scores["AdultContext"] ?: 0.0f
         if (adultContextScore > 0.7f) {
-            Log.w(TAG, "🚨 Adult-Context (potentieller Groomer) erkannt! Score: ${(adultContextScore*100).toInt()}%")
-            return adultContextScore
+            Log.w(TAG, "  Adult-Context (potentieller Groomer) erkannt! Score: ${(adultContextScore*100).toInt()}%")
         }
 
         // Gewichte pro Detection-Layer (optimiert für ~95% Accuracy)
@@ -644,7 +634,7 @@ class KidGuardEngine(private val context: Context) : Closeable {
             "AdultContext" to 0.10f,    // Adult Context: 10%
             "Context" to 0.08f,         // Context-Aware: 8%
             "StageProgression" to 0.03f, // Stage Progression: 3% (+1% Accuracy)
-            "Assessment" to 0.01f,      // Assessment Patterns: 1% (nur Bonus, da schon priorisiert)
+            "Assessment" to 0.15f,      // Assessment Patterns: 15% (increased from 0.01f)
             "Keywords" to 0.01f         // Keywords: 1% (Fallback)
         )
 
@@ -770,6 +760,29 @@ class KidGuardEngine(private val context: Context) : Closeable {
             )
         }
 
+        // TEXT-LENGTH GATE: Skip short texts (same as analyzeTextWithExplanation)
+        if (input.trim().length < DetectionConfig.MIN_TEXT_LENGTH) {
+            Log.d(TAG, "⏭️ Text zu kurz (${input.trim().length} < ${DetectionConfig.MIN_TEXT_LENGTH}), skipping")
+            return AnalysisResult(
+                score = 0.0f,
+                isRisk = false,
+                explanation = "Text zu kurz für Analyse",
+                detectionMethod = "Skipped"
+            )
+        }
+
+        // WORD COUNT GATE: Skip texts with too few words
+        val wordCount = input.trim().split(Regex("\\s+")).filter { it.isNotEmpty() }.size
+        if (wordCount < DetectionConfig.MIN_WORDS_FOR_PATTERN) {
+            Log.d(TAG, "⏭️ Zu wenig Wörter ($wordCount < ${DetectionConfig.MIN_WORDS_FOR_PATTERN}), skipping")
+            return AnalysisResult(
+                score = 0.0f,
+                isRisk = false,
+                explanation = "Zu wenig Wörter für Analyse",
+                detectionMethod = "Skipped"
+            )
+        }
+
         // 1. Generiere pseudonymisierte Contact-ID
         val contactId = ConversationBuffer.generateContactId(appPackage, chatIdentifier)
 
@@ -793,26 +806,30 @@ class KidGuardEngine(private val context: Context) : Closeable {
                     // Genug Kontext für Konversationsanalyse
                     val ospreyResult = detector.analyzeConversation(conversation, contextFeatures)
 
-                    if (ospreyResult.isRisk) {
+                    // Apply confidence adjustment by length before checking threshold
+                    val adjustedConfidence = DetectionConfig.adjustConfidenceByLength(ospreyResult.confidence, input.length)
+
+                    // Check that the Osprey confidence exceeds OSPREY_THRESHOLD before returning as risk
+                    if (adjustedConfidence > DetectionConfig.OSPREY_THRESHOLD) {
                         Log.w(TAG, "⚠️ OSPREY CONVERSATION RISK: ${ospreyResult.stage}")
 
                         // Logge Finding
                         DetectionLogger.logFinding(
                             text = input,
-                            score = ospreyResult.confidence,
+                            score = adjustedConfidence,
                             stage = GroomingStage.fromString(ospreyResult.stage),
                             method = "Osprey-Conversation",
                             pattern = ospreyResult.dominantProgression
                         )
 
                         return AnalysisResult(
-                            score = ospreyResult.confidence,
+                            score = adjustedConfidence,
                             isRisk = true,
                             stage = ospreyResult.stage,
                             explanation = ospreyResult.explanation,
                             detectionMethod = "Osprey-Conversation",
                             detectedPatterns = listOfNotNull(ospreyResult.dominantProgression),
-                            confidence = ospreyResult.confidence,
+                            confidence = adjustedConfidence,
                             allStageScores = ospreyResult.allStageScores
                         )
                     }

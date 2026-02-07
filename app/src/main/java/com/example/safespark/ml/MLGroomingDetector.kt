@@ -33,9 +33,7 @@ class MLGroomingDetector(private val context: Context) {
         "STAGE_TRUST"
     )
 
-    // Neue Detektoren aus den 7 Papers
-    private val trigramDetector = TrigramDetector()
-    private val timeInvestmentTracker = TimeInvestmentTracker()
+
 
     init {
         try {
@@ -118,7 +116,7 @@ class MLGroomingDetector(private val context: Context) {
             label to probabilities[idx]
         }.toMap()
 
-        val isDangerous = predictedStage != "STAGE_SAFE" && maxProb > 0.7f
+        val isDangerous = predictedStage != "STAGE_SAFE" && maxProb > DetectionConfig.ML_THRESHOLD
 
         Log.d(TAG, "🎯 ML Prediction: $predictedStage (${(maxProb * 100).toInt()}%)")
         if (isDangerous) {
@@ -207,59 +205,6 @@ class MLGroomingDetector(private val context: Context) {
             detectedStage = "STAGE_TRUST"
         }
 
-        // TEMPORAL RISK (aus Springer Paper - Late Night)
-        val hour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
-        if (hour >= 23 || hour <= 6) {
-            risk += 0.20f
-            Log.d(TAG, "⏰ Late Night Bonus: +0.20")
-        }
-
-        // EMOJI RISK (aus Springer Paper)
-        val riskEmojis = listOf("😍", "😘", "💕", "🤫", "💰", "🎁", "🔒")
-        riskEmojis.forEach {
-            if (message.contains(it)) risk += 0.12f
-        }
-
-        // URGENCY KEYWORDS
-        val urgencyWords = listOf("now", "jetzt", "quick", "schnell", "today", "heute")
-        urgencyWords.forEach {
-            if (textLower.contains(it)) risk += 0.08f
-        }
-
-        // ADULT-LANGUAGE BOOST (aus ArXiv Paper 2409.07958v1)
-        // Erkennt ob Message von einem Erwachsenen stammt → höheres Grooming-Risiko
-        val adultChildDetector = AdultChildDetector()
-        val acAnalysis = adultChildDetector.analyzeMessage(message)
-
-        if (acAnalysis.isLikelyAdult) {
-            val adultBoost = adultChildDetector.calculateAdultLanguageBoost(message)
-            risk += adultBoost
-            Log.d(TAG, "👤 Adult-Language Boost: +${(adultBoost * 100).toInt()}% (Score: ${(acAnalysis.adultScore * 100).toInt()}%)")
-        }
-
-        // TRIGRAM-DETECTION (aus Nature Scientific Reports s41598-024-83003-4)
-        // High-Risk Phrasen wie "bist du allein" → KRITISCH!
-        val trigramResult = trigramDetector.detectTrigrams(message, language = "de")
-        if (trigramResult.totalMatches > 0) {
-            risk += trigramResult.risk
-            Log.w(TAG, "🚨 Trigram Risk: +${(trigramResult.risk * 100).toInt()}% (${trigramResult.totalMatches} matches)")
-
-            // Update Stage basierend auf Trigram
-            if (trigramResult.risk > 0.5f && detectedStage == "STAGE_SAFE") {
-                // Bestimme Stage aus höchstem Trigram
-                trigramResult.highestRiskTrigram?.let { match ->
-                    when {
-                        match.trigram.contains("allein") || match.trigram.contains("eltern") ->
-                            detectedStage = "STAGE_ASSESSMENT"
-                        match.trigram.contains("geheimnis") || match.trigram.contains("niemandem") ->
-                            detectedStage = "STAGE_ISOLATION"
-                        match.trigram.contains("bild") || match.trigram.contains("foto") ->
-                            detectedStage = "STAGE_SEXUAL"
-                    }
-                }
-            }
-        }
-
         // Begrenze Risk auf 0-1
         risk = risk.coerceIn(0f, 1f)
 
@@ -284,9 +229,9 @@ class MLGroomingDetector(private val context: Context) {
             confidence = risk,
             isDangerous = isDangerous,
             allProbabilities = probabilityMap,
-            trigramMatches = trigramResult.totalMatches,
-            trigramRisk = trigramResult.risk,
-            adultLanguageDetected = acAnalysis.isLikelyAdult,
+            trigramMatches = 0,
+            trigramRisk = 0f,
+            adultLanguageDetected = false,
             timeInvestmentScore = 0f  // Wird von ContextAwareDetector berechnet
         )
     }
