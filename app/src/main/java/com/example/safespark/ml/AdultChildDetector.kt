@@ -132,20 +132,28 @@ class AdultChildDetector {
 
         // Komplexe Sprache (+0.15 pro Match)
         adultComplexLanguage.forEach { indicator ->
-            if (textLower.contains(indicator)) {
+            if (Regex("\\b${Regex.escape(indicator)}\\b", RegexOption.IGNORE_CASE).containsMatchIn(textLower)) {
                 adultScore += 0.15f
             }
         }
 
         // Manipulative Sprache (+0.25 pro Match - WICHTIG für Grooming!)
         adultManipulativeLanguage.forEach { indicator ->
-            if (textLower.contains(indicator)) {
-                adultScore += 0.25f
+            // Multi-word phrases - use contains, single words use word boundary
+            if (indicator.contains(" ")) {
+                if (textLower.contains(indicator)) {
+                    adultScore += 0.25f
+                }
+            } else {
+                if (Regex("\\b${Regex.escape(indicator)}\\b", RegexOption.IGNORE_CASE).containsMatchIn(textLower)) {
+                    adultScore += 0.25f
+                }
             }
         }
 
         // Formelle Fragen (+0.12 pro Match)
         adultFormalQuestions.forEach { indicator ->
+            // These are all multi-word phrases, use contains
             if (textLower.contains(indicator)) {
                 adultScore += 0.12f
             }
@@ -153,6 +161,7 @@ class AdultChildDetector {
 
         // Assessment-Fragen (+0.30 pro Match - HÖCHSTES RISIKO!)
         adultAssessmentLanguage.forEach { indicator ->
+            // These are all multi-word phrases, use contains
             if (textLower.contains(indicator)) {
                 adultScore += 0.30f
             }
@@ -170,7 +179,7 @@ class AdultChildDetector {
 
         // Textspeak (+0.20 pro Match)
         childTextspeak.forEach { indicator ->
-            if (textLower.contains(indicator)) {
+            if (Regex("\\b${Regex.escape(indicator)}\\b", RegexOption.IGNORE_CASE).containsMatchIn(textLower)) {
                 childScore += 0.20f
             }
         }
@@ -192,7 +201,7 @@ class AdultChildDetector {
 
         // Gaming-Slang (+0.18 pro Match)
         childGamingSlang.forEach { indicator ->
-            if (textLower.contains(indicator)) {
+            if (Regex("\\b${Regex.escape(indicator)}\\b", RegexOption.IGNORE_CASE).containsMatchIn(textLower)) {
                 childScore += 0.18f
             }
         }

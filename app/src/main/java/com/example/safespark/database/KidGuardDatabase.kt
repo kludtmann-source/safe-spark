@@ -4,13 +4,16 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import android.util.Log
+import com.example.safespark.trust.TrustedContact
+import com.example.safespark.trust.TrustedContactDao
 
 /**
  * 🗄️ SafeSpark Room Database
  *
  * Zentrale Datenbank für die App.
- * Aktuell nur eine Tabelle: risk_events
  *
  * Features:
  * - Thread-safe Singleton Pattern
@@ -19,6 +22,7 @@ import android.util.Log
  *
  * Version History:
  * - v1: Initial Schema (RiskEvent Entity)
+ * - v2: Added ConversationMessageEntity + TrustedContact
  *
  * TODO für Production:
  * - [ ] Migration Strategy statt fallbackToDestructiveMigration
@@ -26,8 +30,12 @@ import android.util.Log
  * - [ ] exportSchema = true + Versionskontrolle
  */
 @Database(
-    entities = [RiskEvent::class],
-    version = 1,
+    entities = [
+        RiskEvent::class,
+        ConversationMessageEntity::class,
+        TrustedContact::class
+    ],
+    version = 2,
     exportSchema = false // TODO: In Production = true
 )
 abstract class KidGuardDatabase : RoomDatabase() {
@@ -36,6 +44,16 @@ abstract class KidGuardDatabase : RoomDatabase() {
      * Zugriff auf RiskEvent DAO
      */
     abstract fun riskEventDao(): RiskEventDao
+    
+    /**
+     * Zugriff auf ConversationMessage DAO
+     */
+    abstract fun conversationMessageDao(): ConversationMessageDao
+    
+    /**
+     * Zugriff auf TrustedContact DAO
+     */
+    abstract fun trustedContactDao(): TrustedContactDao
 
     companion object {
 

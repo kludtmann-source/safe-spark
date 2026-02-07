@@ -44,7 +44,8 @@ class ContextAwareDetector {
         text: String,
         baseScore: Float,
         baseStage: String,
-        timestamp: Long = System.currentTimeMillis()
+        timestamp: Long = System.currentTimeMillis(),
+        contextFeatures: Map<String, Float> = emptyMap()
     ): ContextualResult {
 
         // Hole oder erstelle History
@@ -70,15 +71,16 @@ class ContextAwareDetector {
         val conversationDuration = timestamp - history.startTime
         val messageFrequency = calculateMessageFrequency(history, timestamp)
 
-        // Berechne Context Bonus
+        // Berechne Context Bonus (jetzt bidirektional)
         val contextBonus = calculateContextBonus(
             progressionScore,
             conversationDuration,
-            messageFrequency
+            messageFrequency,
+            contextFeatures
         )
 
         // Finaler Score
-        val finalScore = minOf(baseScore + contextBonus, 1.0f)
+        val finalScore = minOf(maxOf(baseScore + contextBonus, 0f), 1.0f)
 
         return ContextualResult(
             score = finalScore,
@@ -141,16 +143,17 @@ class ContextAwareDetector {
     }
 
     /**
-     * Berechnet Context Bonus
+     * Berechnet Context Bonus (jetzt bidirektional - kann erhöhen ODER reduzieren)
      */
     private fun calculateContextBonus(
         progressionScore: Float,
         conversationDuration: Long,
-        messageFrequency: Float
+        messageFrequency: Float,
+        contextFeatures: Map<String, Float> = emptyMap()
     ): Float {
         var bonus = 0f
 
-        // Progression Bonus
+        // Progression Bonus (erhöht)
         bonus += progressionScore * 0.2f
 
         // Duration Bonus (längere Gespräche = mehr Investment)
@@ -163,8 +166,17 @@ class ContextAwareDetector {
         if (messageFrequency > 2f) {
             bonus += 0.15f
         }
+        
+        // NEU: Score-REDUKTION bei harmlosem Kontext
+        val safeRatio = contextFeatures["safe_message_ratio"] ?: 0f
+        if (safeRatio > 0.8f) {
+            bonus -= 0.2f   // Überwiegend harmlos → reduziere
+        }
+        if (safeRatio > 0.95f) {
+            bonus -= 0.1f  // Fast komplett harmlos → extra Reduktion
+        }
 
-        return minOf(bonus, 0.4f) // Max +0.4 Context Bonus
+        return bonus.coerceIn(-0.3f, 0.4f)  // Erlaubt jetzt Reduktion bis -0.3
     }
 
     /**
