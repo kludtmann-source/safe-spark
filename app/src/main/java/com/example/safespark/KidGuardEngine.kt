@@ -19,6 +19,8 @@ import com.example.safespark.trust.ContactTrustManager
 import com.example.safespark.trust.TrustLevel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import java.io.BufferedReader
 import java.io.InputStreamReader
@@ -67,9 +69,19 @@ class KidGuardEngine(private val context: Context) : Closeable {
     private val semanticDetector: SemanticDetector?  // Nullable für Fallback
     private val ospreyDetector: OspreyLocalDetector?  // Nullable falls Modell nicht verfügbar
     private val TAG = "SafeSparkEngine"
+    
+    // Fix 1: Managed coroutine scope for async operations
+    private val engineScope = CoroutineScope(Dispatchers.IO + kotlinx.coroutines.SupervisorJob())
 
     // Stage History für Progression-Tracking
     private val stageHistory = mutableListOf<StageProgressionDetector.StageEvent>()
+    
+    // Fix 5: Constants for safe-context boost
+    companion object {
+        private const val SUSPICIOUS_CONTEXT_THRESHOLD = 0.3f
+        private const val MIN_CONVERSATION_SIZE = 5
+        private const val CONTEXT_BOOST_AMOUNT = 0.1f
+    }
 
     init {
         try {
@@ -690,8 +702,8 @@ class KidGuardEngine(private val context: Context) : Closeable {
         
         // Fix 5: Apply safe-context boost if conversation history is suspicious
         val safeContextScore = ConversationBuffer.getSafeContextScore(contactId)
-        if (safeContextScore < 0.3f && conversation.size >= 5) {
-            val boostedScore = (baseResult.score + 0.1f).coerceIn(0f, 1f)
+        if (safeContextScore < SUSPICIOUS_CONTEXT_THRESHOLD && conversation.size >= MIN_CONVERSATION_SIZE) {
+            val boostedScore = (baseResult.score + CONTEXT_BOOST_AMOUNT).coerceIn(0f, 1f)
             Log.w(TAG, "🚨 CONTEXT BOOST applied: ${(baseResult.score * 100).toInt()}% → ${(boostedScore * 100).toInt()}% (safeContext: ${(safeContextScore * 100).toInt()}%)")
             baseResult = baseResult.copy(score = boostedScore, isRisk = boostedScore > 0.5f)
         }
@@ -699,8 +711,8 @@ class KidGuardEngine(private val context: Context) : Closeable {
         // Fix 1: Use sync cache lookup instead of runBlocking
         val trustLevel = ContactTrustManager.getTrustLevelSync(contactId)
         
-        // Fix 1: Fire-and-forget async refresh (non-blocking)
-        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+        // Fix 1: Fire-and-forget async refresh using managed scope
+        engineScope.launch {
             try {
                 ContactTrustManager.refreshTrustCache(contactId, context)
             } catch (e: Exception) {
@@ -711,7 +723,7 @@ class KidGuardEngine(private val context: Context) : Closeable {
         val adjustedScore = ContactTrustManager.applyTrustModifier(baseResult.score, trustLevel, input)
 
         // Fix 1 & Fix 4: Fire-and-forget async stats update with RAW score (before trust modifier)
-        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+        engineScope.launch {
             try {
                 // Fix 4: Pass RAW baseResult.score for risk-spike detection
                 ContactTrustManager.updateContactStats(contactId, baseResult.score, context)
@@ -734,6 +746,9 @@ class KidGuardEngine(private val context: Context) : Closeable {
      * Schließt die Engine und gibt Ressourcen frei
      */
     override fun close() {
+        // Fix 1: Cancel managed coroutine scope
+        engineScope.cancel()
+        
         // Buffer leeren (DSGVO)
         ConversationBuffer.clearAll()
 

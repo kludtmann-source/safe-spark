@@ -35,6 +35,11 @@ object ContactTrustManager {
     
     private const val TAG = "ContactTrustManager"
     
+    // Fix 2 & Fix 4: Constants for trust modifier thresholds
+    private const val HIGH_RISK_THRESHOLD = 0.80f
+    private const val MINIMUM_ADJUSTED_SCORE_FLOOR = 0.55f
+    private const val RISK_SPIKE_THRESHOLD = 0.75f
+    
     /**
      * Fix 1: In-memory trust cache (thread-safe)
      * Prevents ANR by avoiding runBlocking on main thread
@@ -164,7 +169,7 @@ object ContactTrustManager {
                 val contact = if (existing != null) {
                     // Fix 4: Risk-spike detection
                     val currentTrustLevel = TrustLevel.valueOf(existing.trustLevel)
-                    val shouldDegradeFromSpike = messageRiskScore > 0.75f &&
+                    val shouldDegradeFromSpike = messageRiskScore > RISK_SPIKE_THRESHOLD &&
                         (currentTrustLevel == TrustLevel.TRUSTED || currentTrustLevel == TrustLevel.KNOWN) &&
                         !existing.manuallySet
                     
@@ -252,10 +257,10 @@ object ContactTrustManager {
         val modifiedScore = baseScore * trustLevel.scoreMultiplier
         
         // Fix 2: Minimum score floor - high-risk content must not be fully suppressed
-        // If raw score is clearly dangerous (>= 0.80), keep it above isRisk threshold (0.5)
-        val finalScore = if (baseScore >= 0.80f && modifiedScore < 0.55f) {
-            Log.w(TAG, "🚨 SCORE FLOOR applied: ${(modifiedScore * 100).toInt()}% → 55% (base was ${(baseScore * 100).toInt()}%)")
-            0.55f
+        // If raw score is clearly dangerous (>= HIGH_RISK_THRESHOLD), keep it above isRisk threshold (0.5)
+        val finalScore = if (baseScore >= HIGH_RISK_THRESHOLD && modifiedScore < MINIMUM_ADJUSTED_SCORE_FLOOR) {
+            Log.w(TAG, "🚨 SCORE FLOOR applied: ${(modifiedScore * 100).toInt()}% → ${(MINIMUM_ADJUSTED_SCORE_FLOOR * 100).toInt()}% (base was ${(baseScore * 100).toInt()}%)")
+            MINIMUM_ADJUSTED_SCORE_FLOOR
         } else {
             modifiedScore
         }
