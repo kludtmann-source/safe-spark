@@ -14,6 +14,7 @@ import com.example.safespark.detection.SemanticDetector
 import com.example.safespark.model.GroomingIntent
 import com.example.safespark.logging.DetectionLogger
 import com.example.safespark.logging.DetectionLogger.GroomingStage
+import com.example.safespark.config.DetectionConfig
 import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.io.Closeable
@@ -135,6 +136,19 @@ class KidGuardEngine(private val context: Context) : Closeable {
         Log.d(TAG, "analyzeText() aufgerufen mit: '$input' (App: $appPackage)")
         Log.e(TAG, "🔥 VERSION-CHECK: Assessment-Fix v2.0-WORKAROUND aktiv!")
 
+        // TEXT-LENGTH GATE: Skip short texts (DetectionConfig.MIN_TEXT_LENGTH)
+        if (input.trim().length < DetectionConfig.MIN_TEXT_LENGTH) {
+            Log.d(TAG, "⏭️ Text zu kurz (${input.trim().length} < ${DetectionConfig.MIN_TEXT_LENGTH}), skipping")
+            return 0.0f
+        }
+
+        // WORD COUNT GATE: Skip texts with too few words
+        val wordCount = input.trim().split(Regex("\\s+")).filter { it.isNotEmpty() }.size
+        if (wordCount < DetectionConfig.MIN_WORDS_FOR_PATTERN) {
+            Log.d(TAG, "⏭️ Zu wenig Wörter ($wordCount < ${DetectionConfig.MIN_WORDS_FOR_PATTERN}), skipping")
+            return 0.0f
+        }
+
         val scores = mutableMapOf<String, Float>()
 
         // 1. ML-Prediction (Basis: 90.5%)
@@ -199,20 +213,18 @@ class KidGuardEngine(private val context: Context) : Closeable {
             }
         }
 
-        // 6. Spezifische Assessment-Pattern-Prüfung (Critical!)
+        // 6. Check for bypass patterns first (these override all checks)
+        if (DetectionConfig.matchesBypassPattern(input)) {
+            Log.w(TAG, "🚨 BYPASS PATTERN detected - immediate high risk!")
+            return 0.95f
+        }
+
+        // 7. Spezifische Assessment-Pattern-Prüfung (collect score, no early return)
         val lowerInput = input.lowercase().trim()
 
         // NEGATIONS-CHECK: Reduziert False Positives
-        val negationPatterns = listOf(
-            "nicht allein", "not alone", "bin nicht allein", "i'm not alone",
-            "eltern sind da", "parents are here", "mama ist da", "papa ist da"
-        )
-        val containsNegation = negationPatterns.any { lowerInput.contains(it) }
-        if (containsNegation) {
-            Log.d(TAG, "✅ Negation erkannt - kein Risk")
-            // Skip Assessment-Pattern-Check bei Negation
-        } else {
-            // High-Risk Assessment Patterns (PHRASEN statt Einzelwörter!)
+        if (!DetectionConfig.containsNegation(input)) {
+            // High-Risk Assessment Patterns (only clearly suspicious patterns)
             val assessmentPatterns = listOf(
                 // Isolation/Supervision - Deutsch (Phrasen)
                 "bist du allein" to 0.85f,
@@ -221,16 +233,24 @@ class KidGuardEngine(private val context: Context) : Closeable {
                 "ist jemand bei dir" to 0.80f,
                 "ist niemand da" to 0.85f,
                 "wo sind deine eltern" to 0.80f,
-                "sind deine eltern da" to 0.80f,
-                "bist du in deinem zimmer" to 0.75f,
                 "ist deine tür zu" to 0.80f,
+                "bist du in deinem zimmer" to 0.75f,
 
                 // Isolation/Supervision - Englisch (Phrasen)
                 "are you alone" to 0.85f,
                 "are you home alone" to 0.90f,
                 "is anyone there" to 0.80f,
                 "where are your parents" to 0.80f,
-                "is your door closed" to 0.80f
+                "is your door closed" to 0.80f,
+
+                // Gift Giving - Only clearly suspicious patterns
+                "ich schicke dir geld" to 0.85f,
+                "ich schick dir geld" to 0.85f,
+                "ich gebe dir geld" to 0.85f,
+                "ich geb dir geld" to 0.85f,
+                "ich überweise dir" to 0.85f,
+                "i'll send you money" to 0.85f,
+                "i'll give you money" to 0.85f
             )
 
             for ((pattern, riskScore) in assessmentPatterns) {
@@ -246,12 +266,12 @@ class KidGuardEngine(private val context: Context) : Closeable {
                         pattern = pattern
                     )
 
-                    return riskScore  // DIREKT zurückgeben!
+                    break  // Only match first pattern
                 }
             }
         }
 
-        // 7. Keyword-Matching (Fallback)
+        // 8. Keyword-Matching (Fallback) - Fixed threshold
         val words = lowerInput.split(Regex("[\\s\\W]+"))
         var riskCount = 0
         val matchedKeywords = mutableListOf<String>()
@@ -264,18 +284,35 @@ class KidGuardEngine(private val context: Context) : Closeable {
             }
         }
 
+        // Fixed keyword scoring: require more keywords or lower scores
         val keywordScore = when {
             riskCount == 0 -> 0.0f
-            riskCount == 1 -> 0.75f
-            riskCount >= 2 -> 0.95f
-            else -> 0.5f
+            riskCount == 1 -> 0.20f  // Reduced from 0.75f
+            riskCount == 2 -> 0.40f  // Reduced from 0.95f
+            else -> 0.75f  // 3+ keywords for meaningful score
         }
         scores["Keywords"] = keywordScore
 
-        // KOMBINIERE ALLE SCORES (gewichteter Durchschnitt)
-        val finalScore = calculateWeightedScore(scores)
+        // Apply confidence adjustment by length to all scores
+        val adjustedScores = scores.mapValues { (_, score) ->
+            DetectionConfig.adjustConfidenceByLength(score, input.length)
+        }.toMutableMap()
 
-        Log.d(TAG, "📊 Detection Scores: ${scores.map { "${it.key}=${(it.value*100).toInt()}%" }.joinToString(", ")}")
+        // Log adjustments if text is short
+        if (input.length < 30) {
+            Log.d(TAG, "📏 Length adjustment applied (text length: ${input.length})")
+        }
+
+        // Check for layer agreement (dual-confirmation)
+        if (!DetectionConfig.hasLayerAgreement(adjustedScores)) {
+            Log.d(TAG, "⚠️ Insufficient layer agreement - returning safe result")
+            return 0.0f
+        }
+
+        // KOMBINIERE ALLE SCORES (gewichteter Durchschnitt)
+        val finalScore = calculateWeightedScore(adjustedScores)
+
+        Log.d(TAG, "📊 Detection Scores: ${adjustedScores.map { "${it.key}=${(it.value*100).toInt()}%" }.joinToString(", ")}")
         Log.d(TAG, "🎯 FINAL SCORE: ${(finalScore * 100).toInt()}%")
 
         return finalScore
@@ -304,45 +341,80 @@ class KidGuardEngine(private val context: Context) : Closeable {
             )
         }
 
+        // TEXT-LENGTH GATE: Skip short texts
+        if (input.trim().length < DetectionConfig.MIN_TEXT_LENGTH) {
+            Log.d(TAG, "⏭️ Text zu kurz (${input.trim().length} < ${DetectionConfig.MIN_TEXT_LENGTH}), safe result")
+            return AnalysisResult(
+                score = 0.0f,
+                isRisk = false,
+                explanation = "Text zu kurz für Analyse",
+                detectionMethod = "TextLengthGate"
+            )
+        }
+
+        // WORD COUNT GATE: Skip texts with too few words
+        val wordCount = input.trim().split(Regex("\\s+")).filter { it.isNotEmpty() }.size
+        if (wordCount < DetectionConfig.MIN_WORDS_FOR_PATTERN) {
+            Log.d(TAG, "⏭️ Zu wenig Wörter ($wordCount < ${DetectionConfig.MIN_WORDS_FOR_PATTERN}), safe result")
+            return AnalysisResult(
+                score = 0.0f,
+                isRisk = false,
+                explanation = "Zu wenig Wörter für Musteranalyse",
+                detectionMethod = "WordCountGate"
+            )
+        }
+
         val scores = mutableMapOf<String, Float>()
         val detectedPatterns = mutableListOf<String>()
         var detectionMethod = "Unknown"
         var explanation = ""
 
+        // CHECK FOR BYPASS PATTERNS FIRST (these trigger immediately!)
+        if (DetectionConfig.matchesBypassPattern(input)) {
+            Log.w(TAG, "🚨 BYPASS PATTERN detected - immediate alert!")
+            // Find which bypass pattern matched
+            val matchedPattern = DetectionConfig.BYPASS_PATTERNS.find { 
+                input.lowercase().contains(it) 
+            } ?: "bypass pattern"
+            
+            DetectionLogger.logFinding(
+                text = input,
+                score = 0.95f,
+                stage = GroomingStage.ISOLATION,
+                method = "BypassPattern",
+                pattern = matchedPattern
+            )
+            
+            return AnalysisResult(
+                score = 0.95f,
+                isRisk = true,
+                explanation = "🚨 Kritisches Grooming-Muster erkannt: \"$matchedPattern\"",
+                detectionMethod = "BypassPattern",
+                detectedPatterns = listOf(matchedPattern),
+                stage = "STAGE_ISOLATION",
+                confidence = 0.95f
+            )
+        }
+
         // ═══════════════════════════════════════════════════════════════
-        // 0. SEMANTIC SIMILARITY CHECK (HÖCHSTE PRIORITÄT!)
+        // 0. SEMANTIC SIMILARITY CHECK (collect score, no early return)
         // ═══════════════════════════════════════════════════════════════
         semanticDetector?.let { detector ->
             try {
                 val semanticResult = detector.detectIntent(input)
 
-                // Wenn semantic match über Threshold → SOFORTIGE WARNUNG
+                // Collect semantic score instead of early return
                 if (semanticResult.isRisk && semanticResult.intent != null) {
+                    scores["Semantic"] = semanticResult.similarity
+                    detectedPatterns.add(semanticResult.matchedSeed)
+                    detectionMethod = "Semantic-${semanticResult.intent}"
+                    
                     val intent = semanticResult.intent
                     val stage = GroomingIntent.getStage(intent)
                     val intentExplanation = GroomingIntent.getExplanation(intent)
-
-                    // 🚨 STRUCTURED FINDING LOG (nur positive!)
-                    DetectionLogger.logFinding(
-                        text = input,
-                        score = semanticResult.similarity,
-                        stage = GroomingStage.fromString(intent),
-                        method = "Semantic-$intent",
-                        pattern = semanticResult.matchedSeed
-                    )
-
-                    return AnalysisResult(
-                        score = semanticResult.similarity,
-                        isRisk = true,
-                        stage = stage,
-                        explanation = "🔍 Semantische Erkennung: $intentExplanation\n\n" +
-                                     "Ähnlich zu: \"${semanticResult.matchedSeed}\"\n" +
-                                     "Ähnlichkeit: ${(semanticResult.similarity*100).toInt()}%",
-                        detectionMethod = "Semantic-$intent",
-                        detectedPatterns = listOfNotNull(semanticResult.matchedSeed),
-                        confidence = semanticResult.similarity,
-                        allStageScores = mapOf(stage to semanticResult.similarity)
-                    )
+                    explanation = "🔍 Semantische Erkennung: $intentExplanation\n\n" +
+                                 "Ähnlich zu: \"${semanticResult.matchedSeed}\"\n" +
+                                 "Ähnlichkeit: ${(semanticResult.similarity*100).toInt()}%"
                 }
 
                 // Log semantic scores auch bei no-match
@@ -356,32 +428,19 @@ class KidGuardEngine(private val context: Context) : Closeable {
         }
 
         // ═══════════════════════════════════════════════════════════════
-        // 1. OSPREY TRANSFORMER CHECK (ZWEITE PRIORITÄT)
+        // 1. OSPREY TRANSFORMER CHECK (collect score, no early return)
         // ═══════════════════════════════════════════════════════════════
         ospreyDetector?.let { detector ->
             try {
                 val ospreyResult = detector.predict(input)
 
                 if (ospreyResult != null && ospreyResult.isRisk) {
-                    // 🚨 STRUCTURED FINDING LOG (nur positive!)
-                    DetectionLogger.logFinding(
-                        text = input,
-                        score = ospreyResult.confidence,
-                        stage = GroomingStage.fromString(ospreyResult.stage),
-                        method = "Osprey-${ospreyResult.stage}",
-                        pattern = ospreyResult.stage
-                    )
-
-                    return AnalysisResult(
-                        score = ospreyResult.confidence,
-                        isRisk = true,
-                        stage = ospreyResult.stage,
-                        explanation = "🤖 Osprey Transformer: ${ospreyResult.explanation}",
-                        detectionMethod = "Osprey-${ospreyResult.stage}",
-                        detectedPatterns = listOf(ospreyResult.stage),
-                        confidence = ospreyResult.confidence,
-                        allStageScores = ospreyResult.allStageScores
-                    )
+                    scores["Osprey"] = ospreyResult.confidence
+                    detectedPatterns.add(ospreyResult.stage)
+                    if (detectionMethod == "Unknown") {
+                        detectionMethod = "Osprey-${ospreyResult.stage}"
+                        explanation = "🤖 Osprey Transformer: ${ospreyResult.explanation}"
+                    }
                 }
 
                 // Log Osprey scores auch bei no-risk
@@ -394,19 +453,13 @@ class KidGuardEngine(private val context: Context) : Closeable {
             }
         }
 
-        // 2. Assessment-Pattern Check (höchste Priorität)
+        // 2. Assessment-Pattern Check (collect score, no early return unless bypass pattern)
         val lowerInput = input.lowercase().trim()
 
         // NEGATIONS-CHECK zuerst
-        val negationPatterns = listOf(
-            "nicht allein", "not alone", "bin nicht allein", "i'm not alone",
-            "eltern sind da", "parents are here", "mama ist da", "papa ist da"
-        )
-        val containsNegation = negationPatterns.any { lowerInput.contains(it) }
-
-        if (!containsNegation) {
+        if (!DetectionConfig.containsNegation(input)) {
             val assessmentPatterns = mapOf(
-                // Isolation/Assessment - PHRASEN
+                // Isolation/Assessment - PHRASEN (keep only clearly suspicious patterns)
                 "bist du allein" to 0.85f,
                 "bist du alleine" to 0.85f,
                 "bist du gerade allein" to 0.90f,
@@ -416,61 +469,33 @@ class KidGuardEngine(private val context: Context) : Closeable {
                 "is anyone there" to 0.80f,
                 "wo sind deine eltern" to 0.80f,
                 "where are your parents" to 0.80f,
-                "sind deine eltern da" to 0.80f,
-                "bist du in deinem zimmer" to 0.75f,
                 "ist niemand da" to 0.85f,
+                "bist du in deinem zimmer" to 0.75f,
 
-                // Gift Giving - Deutsch
-                "ich kaufe dir" to 0.80f,
-                "ich kauf dir" to 0.80f,
+                // Gift Giving - Only clearly suspicious patterns (removed ambiguous everyday phrases)
+                // Removed: "ich kaufe dir", "ich schenke dir", "ich lade dich ein", "brauchst du geld"
                 "ich schicke dir geld" to 0.85f,
                 "ich schick dir geld" to 0.85f,
-                "ich schenke dir" to 0.75f,
-                "ich schenk dir" to 0.75f,
-                "ich bezahle dir" to 0.80f,
-                "ich bezahl dir" to 0.80f,
                 "ich gebe dir geld" to 0.85f,
                 "ich geb dir geld" to 0.85f,
                 "ich überweise dir" to 0.85f,
-                "willst du geld" to 0.80f,
-                "brauchst du geld" to 0.80f,
-                "ich spendiere dir" to 0.75f,
-                "ich lade dich ein" to 0.70f,
-
-                // Gift Giving - Englisch
-                "i'll buy you" to 0.80f,
-                "i will buy you" to 0.80f,
                 "i'll send you money" to 0.85f,
-                "i'll give you money" to 0.85f,
-                "do you need money" to 0.80f,
-                "i can pay for" to 0.75f
+                "i'll give you money" to 0.85f
             )
 
         for ((pattern, riskScore) in assessmentPatterns) {
             if (lowerInput.contains(pattern)) {
+                // Collect score instead of early return
+                scores["Assessment"] = riskScore
                 detectedPatterns.add(pattern)
-                detectionMethod = "Assessment-Pattern"
-                explanation = "Erkannt wegen: '$pattern' (Assessment-Phase - kritisches Grooming-Muster)"
-
-                // 🚨 STRUCTURED FINDING LOG (nur positive!)
-                DetectionLogger.logFinding(
-                    text = input,
-                    score = riskScore,
-                    stage = GroomingStage.ASSESSMENT,
-                    method = "Assessment-Pattern",
-                    pattern = pattern
-                )
-
-                return AnalysisResult(
-                    score = riskScore,
-                    isRisk = true,
-                    explanation = explanation,
-                    detectionMethod = detectionMethod,
-                    detectedPatterns = detectedPatterns
-                )
+                if (detectionMethod == "Unknown") {
+                    detectionMethod = "Assessment-Pattern"
+                    explanation = "Erkannt wegen: '$pattern' (Assessment-Phase - kritisches Grooming-Muster)"
+                }
+                break  // Only match first pattern
             }
         }
-        } // Ende if (!containsNegation)
+        }
 
         // 2. ML-Prediction
         var detectedStage = "UNKNOWN"
@@ -507,10 +532,37 @@ class KidGuardEngine(private val context: Context) : Closeable {
             }
         }
 
-        // 5. Berechne finalen Score
-        val finalScore = if (scores.isEmpty()) 0.0f else calculateWeightedScore(scores)
+        // 5. Apply confidence adjustment by length to all scores
+        val adjustedScores = scores.mapValues { (_, score) ->
+            DetectionConfig.adjustConfidenceByLength(score, input.length)
+        }.toMutableMap()
 
-        // 6. Generiere Erklärung falls noch nicht vorhanden
+        // Log adjustments if text is short
+        if (input.length < 30) {
+            Log.d(TAG, "📏 Length adjustment applied (text length: ${input.length})")
+            adjustedScores.forEach { (key, value) ->
+                Log.d(TAG, "   $key: ${(scores[key]!!*100).toInt()}% → ${(value*100).toInt()}%")
+            }
+        }
+
+        // 6. Check for layer agreement (dual-confirmation)
+        if (!DetectionConfig.hasLayerAgreement(adjustedScores)) {
+            Log.d(TAG, "⚠️ Insufficient layer agreement - returning safe result")
+            return AnalysisResult(
+                score = 0.0f,
+                isRisk = false,
+                explanation = "Unzureichende Bestätigung durch mehrere Layer",
+                detectionMethod = "InsufficientAgreement",
+                detectedPatterns = detectedPatterns,
+                stage = detectedStage,
+                confidence = 0.0f
+            )
+        }
+
+        // 7. Berechne finalen Score
+        val finalScore = if (adjustedScores.isEmpty()) 0.0f else calculateWeightedScore(adjustedScores)
+
+        // 8. Generiere Erklärung falls noch nicht vorhanden
         if (explanation.isEmpty()) {
             if (finalScore > 0.5f) {
                 explanation = "Kombinierte Erkennung: ${detectedPatterns.joinToString(", ")}"
