@@ -289,8 +289,7 @@ class KidGuardEngine(private val context: Context) : Closeable {
             riskCount == 0 -> 0.0f
             riskCount == 1 -> 0.20f  // Reduced from 0.75f
             riskCount == 2 -> 0.40f  // Reduced from 0.95f
-            riskCount >= 3 -> 0.75f  // Require at least 3 keywords for meaningful score
-            else -> 0.5f
+            else -> 0.75f  // 3+ keywords for meaningful score
         }
         scores["Keywords"] = keywordScore
 
@@ -299,8 +298,8 @@ class KidGuardEngine(private val context: Context) : Closeable {
             DetectionConfig.adjustConfidenceByLength(score, input.length)
         }.toMutableMap()
 
-        // Log adjustments
-        if (adjustedScores != scores) {
+        // Log adjustments if text is short
+        if (input.length < 30) {
             Log.d(TAG, "📏 Length adjustment applied (text length: ${input.length})")
         }
 
@@ -538,8 +537,8 @@ class KidGuardEngine(private val context: Context) : Closeable {
             DetectionConfig.adjustConfidenceByLength(score, input.length)
         }.toMutableMap()
 
-        // Log adjustments
-        if (adjustedScores != scores) {
+        // Log adjustments if text is short
+        if (input.length < 30) {
             Log.d(TAG, "📏 Length adjustment applied (text length: ${input.length})")
             adjustedScores.forEach { (key, value) ->
                 Log.d(TAG, "   $key: ${(scores[key]!!*100).toInt()}% → ${(value*100).toInt()}%")
