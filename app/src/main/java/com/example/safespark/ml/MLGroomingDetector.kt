@@ -164,21 +164,11 @@ class MLGroomingDetector(private val context: Context) {
             "special", "besonders", "mature", "reif", "understand",
             "verstehen", "trust me", "vertrau mir", "friend", "freund"
         )
-        
-        // Helper function for word-boundary matching
-        fun containsWord(keyword: String): Boolean {
-            // Handle multi-word phrases
-            if (keyword.contains(" ")) {
-                return textLower.contains(keyword)
-            }
-            // Single word - check word boundaries
-            return words.any { it == keyword }
-        }
 
         // ASSESSMENT Stage (höchstes Risiko)
         var assessmentCount = 0
         assessmentKeywords.forEach {
-            if (containsWord(it)) {
+            if (containsKeyword(it, textLower, words)) {
                 assessmentCount++
             }
         }
@@ -186,7 +176,7 @@ class MLGroomingDetector(private val context: Context) {
         // ISOLATION Stage
         var isolationCount = 0
         isolationKeywords.forEach {
-            if (containsWord(it)) {
+            if (containsKeyword(it, textLower, words)) {
                 isolationCount++
             }
         }
@@ -194,7 +184,7 @@ class MLGroomingDetector(private val context: Context) {
         // NEEDS Stage
         var needsCount = 0
         needsKeywords.forEach {
-            if (containsWord(it)) {
+            if (containsKeyword(it, textLower, words)) {
                 needsCount++
             }
         }
@@ -202,7 +192,7 @@ class MLGroomingDetector(private val context: Context) {
         // TRUST Stage
         var trustCount = 0
         trustKeywords.forEach {
-            if (containsWord(it)) {
+            if (containsKeyword(it, textLower, words)) {
                 trustCount++
             }
         }
@@ -256,6 +246,23 @@ class MLGroomingDetector(private val context: Context) {
             adultLanguageDetected = false,
             timeInvestmentScore = 0f  // Wird von ContextAwareDetector berechnet
         )
+    }
+    
+    /**
+     * Helper function for word-boundary keyword matching
+     * 
+     * @param keyword The keyword to search for
+     * @param textLower The lowercase text to search in
+     * @param words The text split into words
+     * @return true if keyword is found with word boundaries
+     */
+    private fun containsKeyword(keyword: String, textLower: String, words: List<String>): Boolean {
+        // Handle multi-word phrases
+        if (keyword.contains(" ")) {
+            return textLower.contains(keyword)
+        }
+        // Single word - check word boundaries
+        return words.any { it == keyword }
     }
 
     /**
